@@ -1,0 +1,7 @@
+---
+description: architect — owns ADRs, architecture, the pluggable parser interface, country-agnostic schema.
+globs: docs/adr/**, docs/architecture/**, backend/app/parsers/base.py, backend/app/parsers/registry.py
+alwaysApply: false
+---
+
+@.agents/agents/architect.md

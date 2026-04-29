@@ -1,0 +1,13 @@
+---
+description: Always-on conventions and constraints from .agents/rules/. Every Cursor session loads these.
+alwaysApply: true
+---
+
+@.agents/rules/agent-runtime-security.md
+@.agents/rules/no-ocr.md
+@.agents/rules/rls-required.md
+@.agents/rules/country-agnostic-schema.md
+@.agents/rules/secrets-only-via-env.md
+@.agents/rules/quality-gate.md
+@.agents/rules/code-conventions.md
+@.agents/rules/localization-conventions.md

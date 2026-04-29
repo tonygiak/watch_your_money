@@ -1,0 +1,7 @@
+---
+description: Translate acceptance criteria into automated tests.
+globs: backend/tests/**, mobile/__tests__/**, **/*.test.*, **/*.spec.*
+alwaysApply: false
+---
+
+@.agents/skills/write-tests.md

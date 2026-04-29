@@ -1,0 +1,7 @@
+---
+description: data-architect — owns Supabase schema, indexes, RLS policies, country-agnostic shape.
+globs: db/**, docs/adr/**
+alwaysApply: false
+---
+
+@.agents/agents/data-architect.md

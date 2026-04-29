@@ -1,0 +1,7 @@
+---
+description: mobile-builder — implements the Expo / React Native client.
+globs: mobile/**
+alwaysApply: false
+---
+
+@.agents/agents/mobile-builder.md

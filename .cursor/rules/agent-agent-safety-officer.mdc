@@ -1,0 +1,6 @@
+---
+description: agent-safety-officer — owns agentic-system runtime security and compliance. Always-on per AGENTS.md §3.3.
+alwaysApply: true
+---
+
+@.agents/agents/agent-safety-officer.md

@@ -1,0 +1,6 @@
+---
+description: product-manager — owns roadmap, backlog, sprint scope. Always-on per AGENTS.md §3.3.
+alwaysApply: true
+---
+
+@.agents/agents/product-manager.md

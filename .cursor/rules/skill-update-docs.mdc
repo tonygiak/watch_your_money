@@ -1,0 +1,7 @@
+---
+description: Keep AGENTS.md, plan, backlog, done log, runbooks, and architecture honestly current.
+globs: AGENTS.md, README.md, docs/plan.md, docs/backlog.md, docs/done.md, docs/runbooks/**, docs/architecture/**
+alwaysApply: false
+---
+
+@.agents/skills/update-docs.md

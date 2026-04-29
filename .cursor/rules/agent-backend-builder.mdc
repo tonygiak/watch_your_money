@@ -1,0 +1,7 @@
+---
+description: backend-builder — implements the FastAPI service.
+globs: backend/app/**, backend/tests/routes/**, backend/tests/services/**, backend/requirements.txt, backend/pyproject.toml
+alwaysApply: false
+---
+
+@.agents/agents/backend-builder.md

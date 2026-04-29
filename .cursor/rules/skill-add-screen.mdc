@@ -1,0 +1,7 @@
+---
+description: Add a React Native screen that follows our conventions and ships with tests.
+globs: mobile/src/screens/**, mobile/src/navigation/**, mobile/__tests__/screens/**
+alwaysApply: false
+---
+
+@.agents/skills/add-screen.md

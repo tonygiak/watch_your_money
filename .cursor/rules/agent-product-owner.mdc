@@ -1,0 +1,6 @@
+---
+description: product-owner — owns mission and product priority. Always-on per AGENTS.md §3.3.
+alwaysApply: true
+---
+
+@.agents/agents/product-owner.md

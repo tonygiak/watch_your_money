@@ -1,0 +1,7 @@
+---
+description: product-designer — owns mobile UX, IA, interaction, and visual design.
+globs: docs/sprints/**/*-DES-*.md, mobile/src/screens/**, docs/architecture/ux-*.md
+alwaysApply: false
+---
+
+@.agents/agents/product-designer.md

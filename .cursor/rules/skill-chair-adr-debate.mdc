@@ -1,0 +1,7 @@
+---
+description: Chair a multi-round ADR debate per AGENTS.md §4.4.
+globs: docs/adr/**
+alwaysApply: false
+---
+
+@.agents/skills/chair-adr-debate.md

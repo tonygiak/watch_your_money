@@ -1,0 +1,7 @@
+---
+description: Add a FastAPI endpoint that follows our conventions and ships with tests.
+globs: backend/app/routes/**, backend/app/services/**, backend/app/models/**
+alwaysApply: false
+---
+
+@.agents/skills/add-endpoint.md

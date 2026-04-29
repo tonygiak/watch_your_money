@@ -1,0 +1,7 @@
+---
+description: Refresh real-receipt fixtures with consent and detect upstream HTML drift.
+globs: backend/tests/fixtures/receipts/**
+alwaysApply: false
+---
+
+@.agents/skills/refresh-fixtures.md

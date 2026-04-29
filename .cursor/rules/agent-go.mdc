@@ -1,0 +1,7 @@
+---
+description: go — special agent invoked by user `go` message; runs exactly one sprint end to end.
+globs: docs/sprints/**, AGENTS.md
+alwaysApply: false
+---
+
+@.agents/agents/go.md

@@ -1,0 +1,7 @@
+---
+description: Onboard a new EU country adapter behind the parser interface.
+globs: backend/app/parsers/**, backend/tests/parsers/**, backend/tests/fixtures/receipts/**
+alwaysApply: false
+---
+
+@.agents/skills/add-parser-adapter.md

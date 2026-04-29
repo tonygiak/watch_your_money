@@ -1,0 +1,7 @@
+---
+description: Review any change adding/modifying an external surface (host, MCP, dependency, data flow).
+globs: backend/requirements.txt, mobile/package.json, mobile/package-lock.json, .agents/context/outbound-allowlist.md, docs/adr/**
+alwaysApply: false
+---
+
+@.agents/skills/review-external-surface.md

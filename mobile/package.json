@@ -1,0 +1,19 @@
+{
+  "name": "einvoice-mobile",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Greek e-receipt finance app — Expo client (bootstrap stage).",
+  "scripts": {
+    "test": "jest",
+    "lint": "echo \"lint: configured in next implementation sprint\" && exit 0",
+    "typecheck": "tsc --noEmit",
+    "build": "echo \"build: configured in next implementation sprint\" && exit 0",
+    "start": "echo \"expo start: wired in next implementation sprint after Expo deps are accepted via ADR\" && exit 0"
+  },
+  "devDependencies": {
+    "@types/jest": "29.5.14",
+    "jest": "29.7.0",
+    "ts-jest": "29.2.5",
+    "typescript": "5.6.3"
+  }
+}

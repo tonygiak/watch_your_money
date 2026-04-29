@@ -1,0 +1,7 @@
+---
+description: parser-specialist — owns QR → structured-receipt path and country adapters.
+globs: backend/app/parsers/**, backend/tests/fixtures/**, backend/tests/parsers/**
+alwaysApply: false
+---
+
+@.agents/agents/parser-specialist.md

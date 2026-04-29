@@ -1,0 +1,7 @@
+---
+description: qa — defines test strategy, owns make check.
+globs: backend/tests/**, mobile/__tests__/**, **/*.test.*, **/*.spec.*
+alwaysApply: false
+---
+
+@.agents/agents/qa.md

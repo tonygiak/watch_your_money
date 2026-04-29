@@ -1,0 +1,6 @@
+---
+description: orchestrator — chairs ADR debates and runs the sprint cycle. Always-on per AGENTS.md §3.3.
+alwaysApply: true
+---
+
+@.agents/agents/orchestrator.md

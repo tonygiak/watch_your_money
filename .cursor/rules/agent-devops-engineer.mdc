@@ -1,0 +1,7 @@
+---
+description: devops-engineer — owns deployment pipelines, CI, env-var management.
+globs: Makefile, .github/workflows/**, docs/runbooks/**, .env.sample, **/.env.sample
+alwaysApply: false
+---
+
+@.agents/agents/devops-engineer.md

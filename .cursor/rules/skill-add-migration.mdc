@@ -1,0 +1,7 @@
+---
+description: Add a forward-only Supabase migration with RLS coverage.
+globs: db/migrations/**, db/policies/**, backend/tests/db/**
+alwaysApply: false
+---
+
+@.agents/skills/add-migration.md

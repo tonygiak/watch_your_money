@@ -1,0 +1,7 @@
+---
+description: End-to-end procedure for taking one sprint from kickoff to close.
+globs: docs/sprints/**, docs/plan.md, docs/backlog.md, docs/done.md, AGENTS.md
+alwaysApply: false
+---
+
+@.agents/skills/run-sprint.md

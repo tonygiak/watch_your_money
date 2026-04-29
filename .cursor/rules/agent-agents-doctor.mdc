@@ -1,0 +1,7 @@
+---
+description: agents-doctor — health and evolution of the agentic system itself.
+globs: .agents/**, AGENTS.md, .cursor/rules/**
+alwaysApply: false
+---
+
+@.agents/agents/agents-doctor.md
