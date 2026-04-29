@@ -2,11 +2,11 @@
 
 A self-evolving, agent-built personal-finance mobile app for Greek consumers and freelancers. Captures **SKU-level** receipt data from Greek **e-invoice QR codes** with zero OCR — backed by a country-agnostic schema and a pluggable parser so RO/IT/PT/ES adapters can be added without disturbing the core.
 
-> **Read this first:** the project is governed by [`AGENTS.md`](./AGENTS.md). For the latest user-facing snapshot, jump to **§2.6** (shipped features) and **§2.7** (current sprint).
+> **Read this first:** the project is governed by `[AGENTS.md](./AGENTS.md)`. For the latest user-facing snapshot, jump to **§2.6** (shipped features) and **§2.7** (current sprint).
 
 ## Status
 
-The project is at the end of **Sprint S-000 (bootstrap)**. The repo is fully scaffolded, the agentic system is in place, the migration + RLS are in `db/`, the backend exposes a healthcheck, the mobile app has Greek-first formatting helpers — and `make check` is green. The next sprint is **discovery (S-001)** to finalize the parser interface and the first set of Ready backlog items. See [`docs/plan.md`](./docs/plan.md).
+The project is at the end of **Sprint S-000 (bootstrap)**. The repo is fully scaffolded, the agentic system is in place, the migration + RLS are in `db/`, the backend exposes a healthcheck, the mobile app has Greek-first formatting helpers — and `make check` is green. The next sprint is **discovery (S-001)** to finalize the parser interface and the first set of Ready backlog items. See `[docs/plan.md](./docs/plan.md)`.
 
 ## Repository layout
 
@@ -20,7 +20,7 @@ docs/      Plan, backlog, done log, ADRs, sprints, runbooks, templates, architec
 Makefile   Quality gate: install / run / test / lint / typecheck / build / check / ci.
 ```
 
-See [`AGENTS.md` §8](./AGENTS.md) for full layout details.
+See `[AGENTS.md` §8](./AGENTS.md) for full layout details.
 
 ## Prerequisites
 
@@ -40,25 +40,27 @@ make check           # the green-or-red contract; runs install + lint + typechec
 
 ## Day-to-day commands
 
-| Command | What it does |
-|---|---|
-| `make install` | Install backend (.venv + pip) and mobile (npm) deps. |
-| `make run-backend` | Start FastAPI dev server on port 8000 (`/health` is the smoke test). |
-| `make run-mobile` | Start the mobile app (full Expo wiring lands in S-002). |
-| `make test` | Run backend + mobile tests. |
-| `make lint` | Run ruff (backend) + eslint (mobile, configured in S-002). |
-| `make typecheck` | Run mypy (backend) + tsc --noEmit (mobile). |
-| `make check` | Definition of done: install + lint + typecheck + test. **Sprint close requires green.** |
-| `make ci` | Alias for `make check`. |
-| `make clean` | Remove caches, venv, and node_modules. |
+
+| Command            | What it does                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `make install`     | Install backend (.venv + pip) and mobile (npm) deps.                                    |
+| `make run-backend` | Start FastAPI dev server on port 8000 (`/health` is the smoke test).                    |
+| `make run-mobile`  | Start the mobile app (full Expo wiring lands in S-002).                                 |
+| `make test`        | Run backend + mobile tests.                                                             |
+| `make lint`        | Run ruff (backend) + eslint (mobile, configured in S-002).                              |
+| `make typecheck`   | Run mypy (backend) + tsc --noEmit (mobile).                                             |
+| `make check`       | Definition of done: install + lint + typecheck + test. **Sprint close requires green.** |
+| `make ci`          | Alias for `make check`.                                                                 |
+| `make clean`       | Remove caches, venv, and node_modules.                                                  |
+
 
 ## How the agentic system works (in 60 seconds)
 
-- The **`AGENTS.md`** file is the entry point — mission, hard constraints, sprint flow, schemas, sign-offs.
-- The **`.agents/`** folder is the canonical knowledge base. Four sub-folders with one responsibility each:
+- The `**AGENTS.md`** file is the entry point — mission, hard constraints, sprint flow, schemas, sign-offs.
+- The `**.agents/`** folder is the canonical knowledge base. Four sub-folders with one responsibility each:
   - `agents/` (WHO), `skills/` (HOW), `rules/` (WHAT), `context/` (WHY).
-- The **`.cursor/rules/`** folder mirrors `.agents/` as MDC files so Cursor auto-discovers the right context for the file you're editing.
-- The **`go`** command runs **exactly one sprint** end-to-end. Type `go` (or `go <direction>`) in a Cursor agent chat. After the sprint, read [`AGENTS.md` §2.7](./AGENTS.md) and the latest `docs/sprints/S-<NNN>-*` folder to see what changed.
+- The `**.cursor/rules/`** folder mirrors `.agents/` as MDC files so Cursor auto-discovers the right context for the file you're editing.
+- The `**go**` command runs **exactly one sprint** end-to-end. Type `go` (or `go <direction>`) in a Cursor agent chat. After the sprint, read `[AGENTS.md` §2.7](./AGENTS.md) and the latest `docs/sprints/S-<NNN>-`* folder to see what changed.
 
 ## Running the backend manually
 
@@ -73,17 +75,19 @@ curl http://localhost:8000/health
 
 Environment variables (never committed). See `backend/.env.sample` and `mobile/.env.sample`.
 
-| Variable | Where | Why |
-|---|---|---|
-| `SUPABASE_URL` | backend + mobile | Supabase project URL |
+
+| Variable               | Where            | Why                                             |
+| ---------------------- | ---------------- | ----------------------------------------------- |
+| `SUPABASE_URL`         | backend + mobile | Supabase project URL                            |
 | `SUPABASE_SERVICE_KEY` | **backend only** | Server-side privileged access (never on device) |
-| `SUPABASE_ANON_KEY` | **mobile only** | RLS-gated client access |
-| `BACKEND_API_URL` | mobile | URL of the FastAPI service |
-| `EINVOICING_BASE_URL` | backend | Defaults to `https://e-invoicing.gr` |
+| `SUPABASE_ANON_KEY`    | **mobile only**  | RLS-gated client access                         |
+| `BACKEND_API_URL`      | mobile           | URL of the FastAPI service                      |
+| `EINVOICING_BASE_URL`  | backend          | Defaults to `https://e-invoicing.gr`            |
+
 
 ## Hard constraints (do not bypass)
 
-From [`AGENTS.md` §2.4](./AGENTS.md):
+From `[AGENTS.md` §2.4](./AGENTS.md):
 
 - **No OCR.** Structure comes from the e-invoicing infrastructure.
 - **No third-party paid services** beyond Supabase + Railway/Render + the official `e-invoicing.gr` endpoint.
