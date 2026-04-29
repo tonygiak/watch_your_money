@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.parsers.base import ParserError
+from app.parsers.base import UnsupportedQrUrl
 from app.parsers.gr.url import is_einvoicing_gr, viewer_to_api
 
 
@@ -31,10 +31,10 @@ def test_viewer_to_api_extracts_uuid_and_token() -> None:
 
 
 def test_viewer_to_api_rejects_non_einvoicing_gr() -> None:
-    with pytest.raises(ParserError):
+    with pytest.raises(UnsupportedQrUrl):
         viewer_to_api("https://other.example/edocuments/ViewInvoice/-1/x_y")
 
 
 def test_viewer_to_api_rejects_unknown_path_shape() -> None:
-    with pytest.raises(ParserError):
+    with pytest.raises(UnsupportedQrUrl):
         viewer_to_api("https://e-invoicing.gr/some/other/path")

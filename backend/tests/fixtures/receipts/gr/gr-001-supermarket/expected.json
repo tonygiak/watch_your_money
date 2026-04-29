@@ -1,0 +1,55 @@
+{
+  "country_code": "GR",
+  "merchant_name": "ΠΑΡΑΔΕΙΓΜΑ ΣΟΥΠΕΡ ΜΑΡΚΕΤ ΑΕ",
+  "merchant_afm": "123456789",
+  "merchant_address": "Λεωφ. Κηφισίας 100, 11526 Αθήνα — ΔΟΥ ΦΑΕ ΑΘΗΝΩΝ",
+  "document_number": "A1-2026-000042",
+  "mark": "400000123456789",
+  "uid": "11111111-2222-3333-4444-555555555555",
+  "authentication_code": "AUTH-DEAD-BEEF-CAFE",
+  "issue_date": "2026-04-15",
+  "transmission_timestamp": "2026-04-15T14:30:15",
+  "payment_method": "Μετρητά",
+  "subtotal": "10.80",
+  "discount": "0.40",
+  "surcharge": "0.00",
+  "total": "10.40",
+  "net_value": "8.77",
+  "vat_total": "1.63",
+  "provider": "ENTERSOFT",
+  "items": [
+    {
+      "ean": "5201234567890",
+      "description": "Γάλα φρέσκο πλήρες 1L",
+      "unit": "τεμ.",
+      "quantity": "2",
+      "unit_price": "1.50",
+      "pre_discount_value": "3.00",
+      "discount": "0.00",
+      "vat_rate": "13",
+      "total_value": "3.00"
+    },
+    {
+      "ean": "5209876543210",
+      "description": "Ψωμί ολικής άλεσης 500g",
+      "unit": "τεμ.",
+      "quantity": "1",
+      "unit_price": "2.40",
+      "pre_discount_value": "2.40",
+      "discount": "0.40",
+      "vat_rate": "13",
+      "total_value": "2.00"
+    },
+    {
+      "ean": "5203334445556",
+      "description": "Καθαριστικό γενικής χρήσης 1L",
+      "unit": "τεμ.",
+      "quantity": "1",
+      "unit_price": "5.40",
+      "pre_discount_value": "5.40",
+      "discount": "0.00",
+      "vat_rate": "24",
+      "total_value": "5.40"
+    }
+  ]
+}

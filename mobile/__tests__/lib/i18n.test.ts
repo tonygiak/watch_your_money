@@ -21,4 +21,12 @@ describe("i18n", () => {
     const greekTitle = t("home.title", "el");
     expect(greekTitle).toContain("αποδείξεις");
   });
+
+  it("exposes scanner.* strings for both locales (DES-0001)", () => {
+    expect(t("scanner.cta", "el")).toBe("Σάρωση παραστατικού");
+    expect(t("scanner.cta", "en")).toBe("Scan receipt");
+    expect(t("scanner.success.duplicate", "el")).toBe(
+      "Έχετε ήδη σαρώσει αυτό το παραστατικό."
+    );
+  });
 });

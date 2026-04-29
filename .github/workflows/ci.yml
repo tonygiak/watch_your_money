@@ -1,0 +1,92 @@
+# Continuous integration — runs `make check` on every push + PR.
+#
+# Owned by `devops-engineer` (BLG-0008 / `AGENTS.md` §4.7).
+# - Pinned: Python 3.11, Node 20, Ubuntu latest.
+# - Caches pip on `requirements-dev.txt` and npm on `mobile/package-lock.json`.
+# - PYTHONUTF8=1 + PIP_PROGRESS_BAR=off (S-000 bootstrap learning) carried
+#   into the env so non-ASCII paths and noisy progress bars never break logs.
+# - No new external surface beyond what the outbound allowlist already covers
+#   (github.com / pypi.org / registry.npmjs.org per
+#   `.agents/context/outbound-allowlist.md`).
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_COLOR: "1"
+  PIP_PROGRESS_BAR: "off"
+
+jobs:
+  check:
+    name: make check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install backend deps
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --upgrade pip
+          backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+
+      - name: Install mobile deps
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint backend (ruff)
+        working-directory: backend
+        run: .venv/bin/python -m ruff check .
+
+      - name: Typecheck backend (mypy)
+        working-directory: backend
+        run: .venv/bin/python -m mypy app tests
+
+      - name: Test backend (pytest + parser fixtures)
+        working-directory: backend
+        run: .venv/bin/python -m pytest
+
+      - name: Lint mobile
+        working-directory: mobile
+        run: npm run lint --silent
+
+      - name: Typecheck mobile (tsc)
+        working-directory: mobile
+        run: npm run typecheck --silent
+
+      - name: Test mobile (jest)
+        working-directory: mobile
+        run: npm test --silent
+
+      - name: Quality gate summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "::notice::make check passed: backend (ruff, mypy, pytest) + mobile (lint, tsc, jest)."
+          else
+            echo "::error::make check failed. Inspect the failing step above."
+          fi
