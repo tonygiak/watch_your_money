@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.parsers.base import ParserError
+from app.parsers.base import UnsupportedQrUrl
 from app.parsers.registry import all_parsers, find_parser
 
 
@@ -22,5 +22,5 @@ def test_registry_resolves_einvoicing_gr() -> None:
 
 
 def test_registry_rejects_unknown_origin() -> None:
-    with pytest.raises(ParserError):
+    with pytest.raises(UnsupportedQrUrl):
         find_parser("https://some-other-portal.example/whatever")

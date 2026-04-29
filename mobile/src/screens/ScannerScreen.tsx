@@ -1,0 +1,448 @@
+/**
+ * Scanner screen — wires `expo-camera` onto the `scannerReducer`.
+ *
+ * Excluded from the typecheck / test gate until BLG-0012 lands the Expo
+ * runtime deps with `agent-safety-officer` + `engineering-manager` co-sign
+ * per `AGENTS.md` §4.11. The reducer (`./scanner/state.ts`), the validator
+ * (`../parsers/gr.ts`), the i18n table (`../i18n/strings.ts`), and the
+ * locale detector (`../lib/locale.ts`) are already in the gate today.
+ *
+ * Activation checklist:
+ *   1. `npm i expo expo-camera expo-localization react react-native`
+ *   2. Re-include this file in `tsconfig.json`.
+ *   3. Wire into the nav stack.
+ *
+ * Behaviour pinned by ADR-0003 + DES-0001. Everything below should be a
+ * thin glue layer; complex logic stays in the testable modules above.
+ */
+
+import React, {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
+
+import { postReceiptsParse } from "../api/receipts";
+import { t } from "../lib/i18n";
+import { validateGrQrUrl } from "../parsers/gr";
+import {
+  initialScannerState,
+  scannerReducer,
+  telemetryEventFor,
+} from "./scanner/state";
+
+type Props = {
+  bearerToken: string;
+  backendUrl: string;
+  onSuccess: (receiptId: string) => void;
+  onAuthError: () => void;
+  onClose: () => void;
+};
+
+export default function ScannerScreen(props: Props): JSX.Element {
+  const [state, dispatch] = useReducer(scannerReducer, initialScannerState);
+  const prevStatusRef = useRef(state.status);
+  const submitAbortRef = useRef<AbortController | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [showPrePrompt, setShowPrePrompt] = useState(false);
+
+  // ---- Telemetry (counts only, no PII) ------------------------------------
+  useEffect(() => {
+    const event = telemetryEventFor(prevStatusRef.current, state.status);
+    if (event) {
+      // Hook your telemetry sink here. Counts only — never PII.
+      // e.g. telemetry.increment(event)
+    }
+    prevStatusRef.current = state.status;
+  }, [state.status]);
+
+  // ---- Permission flow ----------------------------------------------------
+  useEffect(() => {
+    if (state.status !== "permission_check") return;
+    if (!permission) return;
+    if (permission.granted) {
+      dispatch({ type: "PERMISSION_GRANTED" });
+      return;
+    }
+    if (!permission.canAskAgain) {
+      dispatch({ type: "PERMISSION_BLOCKED" });
+      return;
+    }
+    setShowPrePrompt(true);
+  }, [state.status, permission]);
+
+  const onPrePromptContinue = useCallback(async () => {
+    setShowPrePrompt(false);
+    const result = await requestPermission();
+    if (result.granted) {
+      dispatch({ type: "PERMISSION_GRANTED" });
+    } else if (!result.canAskAgain) {
+      dispatch({ type: "PERMISSION_BLOCKED" });
+    } else {
+      dispatch({ type: "PERMISSION_DENIED" });
+    }
+  }, [requestPermission]);
+
+  // ---- Camera scan handler ------------------------------------------------
+  const onBarcodeScanned = useCallback((event: { data: string }) => {
+    if (state.status !== "scanning") return;
+    const validation = validateGrQrUrl(event.data);
+    if (!validation.ok) {
+      dispatch({ type: "QR_UNSUPPORTED" });
+      return;
+    }
+    dispatch({ type: "QR_DETECTED", qrUrl: event.data });
+    dispatch({ type: "QR_DOMAIN_OK" });
+  }, [state.status]);
+
+  // ---- Submit (POST /receipts/parse) --------------------------------------
+  useEffect(() => {
+    if (state.status !== "submitting" || !state.qrUrl) return;
+    submitAbortRef.current?.abort();
+    const controller = new AbortController();
+    submitAbortRef.current = controller;
+    let cancelled = false;
+    (async () => {
+      const result = await postReceiptsParse({
+        qrUrl: state.qrUrl!,
+        bearerToken: props.bearerToken,
+        backendUrl: props.backendUrl,
+        signal: controller.signal,
+      });
+      if (cancelled) return;
+      if (result.kind === "ok") {
+        dispatch(
+          result.isDuplicate
+            ? { type: "SUBMIT_200_DUPLICATE", receiptId: result.receiptId }
+            : { type: "SUBMIT_201_NEW", receiptId: result.receiptId }
+        );
+      } else {
+        switch (result.status) {
+          case 401:
+            dispatch({ type: "SUBMIT_401" });
+            break;
+          case 422:
+            dispatch({ type: "SUBMIT_422" });
+            break;
+          case 502:
+            dispatch({ type: "SUBMIT_502" });
+            break;
+          case 503:
+            dispatch({ type: "SUBMIT_503" });
+            break;
+          case "timeout":
+            dispatch({ type: "SUBMIT_TIMEOUT" });
+            break;
+          default:
+            dispatch({ type: "SUBMIT_GENERIC_ERROR" });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [state.status, state.qrUrl, props.bearerToken, props.backendUrl]);
+
+  // ---- Routing on terminal states -----------------------------------------
+  useEffect(() => {
+    if (state.status === "success_new" || state.status === "success_duplicate") {
+      if (state.receipt) props.onSuccess(state.receipt.receiptId);
+    }
+    if (state.status === "auth_error") {
+      props.onAuthError();
+    }
+  }, [state.status, state.receipt, props]);
+
+  // ---- Renderers ----------------------------------------------------------
+  if (showPrePrompt) {
+    return (
+      <Modal transparent animationType="fade">
+        <View style={styles.modalRoot}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {t("scanner.permission.preprompt.title")}
+            </Text>
+            <Text style={styles.modalBody}>
+              {t("scanner.permission.preprompt.body")}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setShowPrePrompt(false);
+                  dispatch({ type: "USER_CANCELLED" });
+                  props.onClose();
+                }}
+              >
+                <Text style={styles.actionSecondary}>{t("common.cancel")}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={onPrePromptContinue}>
+                <Text style={styles.actionPrimary}>{t("common.continue")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (state.status === "permission_blocked") {
+    return (
+      <ErrorModal
+        title={t("scanner.permission.blocked.title")}
+        body={t("scanner.permission.blocked.body")}
+        actionLabel={t("common.openSettings")}
+        onAction={() => Linking.openSettings()}
+        onClose={() => {
+          dispatch({ type: "USER_CANCELLED" });
+          props.onClose();
+        }}
+      />
+    );
+  }
+
+  if (state.status === "permission_denied") {
+    return (
+      <ErrorModal
+        title={t("scanner.permission.denied.title")}
+        body={t("scanner.permission.denied.body")}
+        actionLabel={t("scanner.permission.denied.action")}
+        onAction={onPrePromptContinue}
+        onClose={() => {
+          dispatch({ type: "USER_CANCELLED" });
+          props.onClose();
+        }}
+      />
+    );
+  }
+
+  if (
+    state.status === "auth_error" ||
+    state.status === "parse_error_user" ||
+    state.status === "network_error" ||
+    state.status === "parser_drift" ||
+    state.status === "generic_error" ||
+    state.status === "camera_error"
+  ) {
+    const map = {
+      auth_error: ["scanner.error.auth.title", "scanner.error.auth.body"],
+      parse_error_user: [
+        "scanner.error.parse.title",
+        "scanner.error.parse.body",
+      ],
+      network_error: [
+        "scanner.error.network.title",
+        "scanner.error.network.body",
+      ],
+      parser_drift: ["scanner.error.drift.title", "scanner.error.drift.body"],
+      generic_error: [
+        "scanner.error.generic.title",
+        "scanner.error.generic.body",
+      ],
+      camera_error: [
+        "scanner.error.camera.title",
+        "scanner.error.camera.body",
+      ],
+    } as const;
+    const [titleKey, bodyKey] = map[state.status];
+    const isAuth = state.status === "auth_error";
+    const isRetryable =
+      state.status === "network_error" ||
+      state.status === "parser_drift" ||
+      state.status === "generic_error" ||
+      state.status === "camera_error" ||
+      state.status === "parse_error_user";
+    return (
+      <ErrorModal
+        title={t(titleKey)}
+        body={t(bodyKey)}
+        actionLabel={
+          isAuth ? t("scanner.error.auth.action") : t("common.retry")
+        }
+        onAction={() => {
+          if (isAuth) return; // Routing handled by useEffect.
+          if (isRetryable) dispatch({ type: "RETRY" });
+        }}
+        onClose={() => {
+          dispatch({ type: "USER_CANCELLED" });
+          props.onClose();
+        }}
+      />
+    );
+  }
+
+  // Camera surface for permission_check / scanning / unsupported_qr /
+  // validating_url / submitting / success_*. The camera stays mounted across
+  // these so navigation feels instant.
+  return (
+    <View style={styles.cameraRoot}>
+      {permission?.granted && state.status !== "permission_check" && (
+        <CameraView
+          style={styles.cameraSurface}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          onBarcodeScanned={onBarcodeScanned}
+        />
+      )}
+      <Text style={styles.scanningHeader}>
+        {t("scanner.scanning.header")}
+      </Text>
+      {state.status === "submitting" && (
+        <View style={styles.overlay}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.overlayText}>
+            {t("scanner.submitting.body")}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              submitAbortRef.current?.abort();
+              dispatch({ type: "USER_CANCELLED" });
+              props.onClose();
+            }}
+          >
+            <Text style={styles.actionSecondary}>{t("common.cancel")}</Text>
+          </Pressable>
+        </View>
+      )}
+      {state.status === "unsupported_qr" && (
+        <Toast
+          message={t("scanner.error.unsupported.toast")}
+          onDismiss={() => dispatch({ type: "DISMISS_ERROR" })}
+        />
+      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("common.close")}
+        style={styles.closeButton}
+        onPress={() => {
+          submitAbortRef.current?.abort();
+          dispatch({ type: "USER_CANCELLED" });
+          props.onClose();
+        }}
+      >
+        <Text style={styles.closeButtonText}>×</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ErrorModal(props: {
+  title: string;
+  body: string;
+  actionLabel: string;
+  onAction: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <Modal transparent animationType="fade">
+      <View style={styles.modalRoot}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{props.title}</Text>
+          <Text style={styles.modalBody}>{props.body}</Text>
+          <View style={styles.modalActions}>
+            <Pressable accessibilityRole="button" onPress={props.onClose}>
+              <Text style={styles.actionSecondary}>{t("common.cancel")}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={props.onAction}>
+              <Text style={styles.actionPrimary}>{props.actionLabel}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function Toast(props: { message: string; onDismiss: () => void }): JSX.Element {
+  useEffect(() => {
+    const id = setTimeout(props.onDismiss, 3000);
+    return () => clearTimeout(id);
+  }, [props.onDismiss]);
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.toast}>
+      <Text style={styles.toastText}>{props.message}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  cameraRoot: { flex: 1, backgroundColor: "#000" },
+  cameraSurface: { flex: 1 },
+  scanningHeader: {
+    color: "#fff",
+    fontSize: 16,
+    textAlign: "center",
+    paddingVertical: 16,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  overlayText: { color: "#fff", marginTop: 12, fontSize: 16 },
+  toast: {
+    position: "absolute",
+    bottom: 32,
+    left: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  toastText: { color: "#fff", fontSize: 14 },
+  closeButton: {
+    position: "absolute",
+    top: 32,
+    left: 16,
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 22,
+  },
+  closeButtonText: { color: "#fff", fontSize: 28 },
+  modalRoot: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 24,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "600", marginBottom: 12 },
+  modalBody: { fontSize: 15, lineHeight: 22, marginBottom: 24 },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 16 },
+  actionPrimary: {
+    color: "#0066cc",
+    fontSize: 16,
+    fontWeight: "600",
+    minHeight: 44,
+    textAlignVertical: "center",
+  },
+  actionSecondary: {
+    color: "#666",
+    fontSize: 16,
+    minHeight: 44,
+    textAlignVertical: "center",
+  },
+});
