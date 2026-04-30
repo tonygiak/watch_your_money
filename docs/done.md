@@ -4,6 +4,37 @@ Append-only ledger of everything **completed**, grouped by sprint, newest on top
 
 ---
 
+## Sprint S-003 — Auth-and-cache (closed 2026-04-30)
+
+> Discovery sprint. Settled the four contracts that gate every S-004 user-visible item: phone-OTP auth, insights computation, offline cache, Expo runtime tree. Plus one in-sprint admin (BLG-0010 — reconcile `AGENTS.md` §5.3.2 with ADR-0002 / ADR-0005).
+
+- **BLG-0010 — Reconcile `AGENTS.md` §5.3.2 wording with ADR-0002 (and ADR-0005).** §5.3.2 now declares Bearer JWT as the authentication contract for every endpoint, drops `user_id` from `/receipts/parse`'s body, and drops `user_id` from the query of every other endpoint. Insights endpoints' shape is anchored to ADR-0005 §4. The §4.4 tie-breaker precedent (hard constraints win over literal §5.3.2 wording) is now codified in the spec itself, not just in the ADRs. Sign-offs: `agents-doctor` (structural), `architect` + `engineering-manager` (API contract), `security-privacy-officer` (no client-supplied identity), `orchestrator` (sprint LOG records the change).
+
+Plus four ADRs (which stay in `docs/adr/`, NOT in `docs/done.md` — discovery output):
+
+- **ADR-0004** — *Phone-OTP provider, flow, rate limits, and GDPR posture.* Supabase native phone OTP. No new outbound surface; allowlist unchanged. 14-day refresh-token lifetime; on-device E.164 normalizer with `+30` default; per-phone enumeration defense; Art. 6(1)(b) lawful basis recorded.
+- **ADR-0005** — *Insights computation strategy.* PostgREST RPCs for the math + FastAPI orchestration; Athens-TZ period boundaries; decimal-as-string responses; "untagged" + `business_category` for MVP categories; deferred inferred-category to a future BLG.
+- **ADR-0006** — *Offline cache strategy + at-rest encryption.* AsyncStorage + AES-256-GCM (`@noble/ciphers`) with key in `expo-secure-store`; LRU cap at 200 receipts; sanitizer drops `raw_html` and any field outside the documented cacheable subset.
+- **ADR-0007** — *Expo runtime tree.* Expo SDK 51 with exact-pinned package set (17 runtime + 6 dev); `npm ci` discipline; `package-lock.json` committed; `EXPO_NO_TELEMETRY=1` in `.env.sample`; `react-native-chart-kit` flagged for re-evaluation post-MVP; `agent-safety-officer` review recorded in the LOG.
+
+Plus two design artifacts (in the sprint folder, NOT in `docs/done.md`):
+
+- **DES-0002** — *Login screen UX.* Full state machine + Greek-first copy + accessibility + telemetry rules.
+- **DES-0003** — *Insights screen UX.* Layout, period selector, by-category / by-merchant / top-products sections, empty + offline states.
+
+Plus four backlog items refined to **Ready** (NOT yet done — they wait for S-004 implementation):
+
+- BLG-0005 (Login + Supabase native OTP).
+- BLG-0006 (Insights endpoints + screen).
+- BLG-0007 (Encrypted offline cache + offline UX).
+- BLG-0012 (Expo runtime tree install + gate re-inclusion).
+
+Sign-offs (sprint review per §4.11): `architect` + `engineering-manager` (ADR-0005, ADR-0007), `security-privacy-officer` + `data-architect` (ADR-0004, ADR-0006), `agent-safety-officer` (no new external surface introduced this sprint; supply-chain review for ADR-0007's pinned set captured in the ADR), `product-designer` + `localization-specialist` (DES-0002, DES-0003), `qa` (acceptance bullets are testable), `orchestrator` (sprint review + chair on all four ADRs), `agents-doctor` + `orchestrator` (BLG-0010 edit to `AGENTS.md` §5.3.2).
+
+`make check` at sprint close: 38 backend + 52 mobile = 90 tests — **green** (smoke check; no production code changed).
+
+---
+
 ## Sprint S-002 — Scan-and-store (closed 2026-04-30)
 
 > First user-visible behavior in the app: a Greek QR scanned through the mobile reducer + validator → POSTed to `/receipts/parse` → stored under the user's RLS scope, with idempotent re-scans returning the same row. Five Ready items pulled from S-001; four closed cleanly, BLG-0004 advanced (1 synthetic fixture shipped to unblock BLG-0001), and one drift item (BLG-0012) opened for the Expo runtime install split off from BLG-0003.
