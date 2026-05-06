@@ -60,7 +60,7 @@ make check           # the green-or-red contract; runs install + lint + typechec
 - The `**.agents/`** folder is the canonical knowledge base. Four sub-folders with one responsibility each:
   - `agents/` (WHO), `skills/` (HOW), `rules/` (WHAT), `context/` (WHY).
 - The `**.cursor/rules/`** folder mirrors `.agents/` as MDC files so Cursor auto-discovers the right context for the file you're editing.
-- The `**go**` command runs **exactly one sprint** end-to-end. Type `go` (or `go <direction>`) in a Cursor agent chat. After the sprint, read `[AGENTS.md` §2.7](./AGENTS.md) and the latest `docs/sprints/S-<NNN>-`* folder to see what changed.
+- The `**go`** command runs **exactly one sprint** end-to-end. Type `go` (or `go <direction>`) in a Cursor agent chat. After the sprint, read `[AGENTS.md` §2.7](./AGENTS.md) and the latest `docs/sprints/S-<NNN>-`* folder to see what changed.
 
 ## Running the backend manually
 
