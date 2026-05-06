@@ -137,7 +137,7 @@ as $$
     ),
     grouped as (
         select
-            case when coalesce(ean, '') = '' then ''       else ean         end as ean,
+            coalesce(min(ean), '')                                              as ean,
             min(description)                                                as description,
             count(*)                                                        as frequency,
             sum(total_value)                                                as total_spend,

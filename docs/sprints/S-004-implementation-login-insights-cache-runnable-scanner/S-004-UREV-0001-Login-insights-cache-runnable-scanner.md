@@ -45,5 +45,40 @@ You need: Python 3.11+, Node.js, `make`, and **Expo Go** on a real Android / iOS
 - `AGENTS.md` §2.6 — shipped features (now includes Login, Insights, encrypted cache, runnable Scanner).
 - `AGENTS.md` §2.7 — current sprint snapshot (S-004 closed; S-005 discovery queued for `freelancer-mode`).
 - `docs/plan.md` — next sprint direction.
-- `docs/backlog.md` — what's planned / in-progress (BLG-0013, BLG-0014, BLG-0015 added this sprint).
+- `docs/backlog.md` — what's planned / in-progress (BLG-0013, BLG-0014, BLG-0015 added this sprint; BLG-0016 added 2026-05-07 — see addendum below).
 - `docs/done.md` — what has been completed (S-004 entry on top).
+
+---
+
+## Addendum — Verification finding (2026-05-07)
+
+The user walked through this UREV after S-004 close. Here is the exact state observed:
+
+**Verified green:**
+
+- Step 1 — `backend/.env` and `mobile/.env` configured against the user's Supabase project (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_JWT_SECRET`, `SUPABASE_ANON_KEY`, `BACKEND_API_URL`).
+- Step 2 — migrations applied successfully on the user's Supabase project. `0001_init.sql` was already present; `0002_handle_new_user.sql` and `0003_insights_rpc.sql` ran clean. Verification query returns `handle_new_user`, `insights_summary_for_user`, `insights_top_products_for_user`. **One drift fix landed during this step**: `db/migrations/0003_insights_rpc.sql` had a `GROUP BY` mismatch (`case when coalesce(ean, '') = '' then '' else ean end as ean` vs the grouping key) that Supabase rejected with `ERROR: 42803`. Replaced the SELECT expression with `coalesce(min(ean), '')` — semantically identical (all rows in a group share the same EAN) and groups now match. The migration is forward-only; this counts as an in-place fix to a not-yet-applied migration on the user's environment, **not** a new migration. No backlog item needed; tracked here for audit.
+- Step 3 — `make check` green: 70 backend + 128 mobile = 198 tests across 13 suites. (PowerShell quirk: must invoke as `make -f Makefile check` per `docs/plan.md` notes.)
+- Step 4a — `make run-backend` boots cleanly: `Uvicorn running on http://127.0.0.1:8000`, `Application startup complete`.
+
+**Blocked:**
+
+- Step 4b — `make run-mobile` starts the Expo bundler but **Expo Go on iOS rejects the project**:
+  > `ERROR  Project is incompatible with this version of Expo Go.`
+  > `The installed version of Expo Go is for SDK 54.0.0.`
+  > `The project you opened uses SDK 51.`
+  iOS Expo Go only ships the latest SDK; older SDK runtimes are not installable on iOS devices.
+- Step 5 — end-to-end acceptance test (sign in → scan → view Insights → offline mode → restore) **cannot run on the user's device** until the SDK situation is resolved.
+- Step 6 — RLS verification (second user, cross-tenant read) is unblocked from the backend / SQL side but the second-device test on iOS shares the same blocker.
+
+**Mitigation filed:**
+
+- **BLG-0016 — Upgrade Expo SDK 51 → 54** (`docs/backlog.md`). Per the agentic process: ADR debate in **S-005 (discovery)** with `architect` + `engineering-manager` + `agent-safety-officer` (supply-chain review) + `mobile-builder`. Implementation in **S-006**, ideally landing first so the freelancer-mode UREV can run on a real device. ADR-0007 will be amended (or superseded) once the decision is made.
+- **In-tree compat-matrix drift, folded into BLG-0016.** `expo start` also surfaced two warnings on top of the SDK mismatch: `@react-native-community/netinfo@11.3.2` vs SDK 51 expected `11.3.1`, and `typescript@5.6.3` vs SDK 51 expected `~5.3.3`. Both are explicit decisions in ADR-0007 §2 (`mobile-builder` Round 1 picked `netinfo@11.3.2`, and the `typescript@5.6.3` line is the ADR's "stays" decision), so silently editing them mid-conversation would violate `AGENTS.md` §3.2 / §4.4. The S-005 ADR for BLG-0016 must therefore explicitly address them — re-align to the SDK matrix or record a deliberate deviation — and `expo-doctor` clean becomes the S-006 acceptance criterion that catches any lingering drift automatically.
+
+**Workarounds available right now (without waiting for S-006):**
+
+- An Android device with a sideloaded SDK 51 Expo Go APK from `expo.dev/go?sdkVersion=51&platform=android` would let the on-device acceptance script run before S-006 lands.
+- An iOS Simulator on a Mac with the SDK 51 Expo Go bundle would also work.
+
+Otherwise, the on-device acceptance test is deferred to S-006 close, where it merges with the S-006 freelancer-mode UREV.
