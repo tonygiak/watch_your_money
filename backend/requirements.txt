@@ -5,3 +5,13 @@ requests==2.32.3
 beautifulsoup4==4.12.3
 supabase==2.10.0
 python-dotenv==1.0.1
+# tzdata: Python's `zoneinfo` falls back to the OS IANA db on POSIX systems
+# (Linux, macOS) but on Windows there is no system db, so tests against
+# `Europe/Athens` (per ADR-0005 §3) raise `ZoneInfoNotFoundError`. The
+# `tzdata` package is the official PSF-maintained data-only shim recommended
+# by the `zoneinfo` docs. Pinned here so `make check` is green on Windows
+# dev machines too. Linux production runtimes ignore it (the system db wins).
+# This addition was treated as drift in S-004 (BLG-0013); a proper
+# supply-chain review by `agent-safety-officer` will close out the drift in
+# the next discovery sprint per `AGENTS.md` §4.1.1 / §4.10.
+tzdata==2024.2
