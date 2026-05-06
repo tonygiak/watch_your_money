@@ -10,6 +10,7 @@ from app import __version__
 from app.auth import JwtError
 from app.errors import problem_response
 from app.routes.health import router as health_router
+from app.routes.insights import router as insights_router
 from app.routes.receipts import jwt_exception_handler
 from app.routes.receipts import router as receipts_router
 
@@ -49,3 +50,4 @@ async def _on_validation_error(
 
 app.include_router(health_router)
 app.include_router(receipts_router)
+app.include_router(insights_router)

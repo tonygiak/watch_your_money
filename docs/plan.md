@@ -4,64 +4,72 @@ The current direction of the project and the focus of the next sprint.
 
 ## Where we are right now
 
-Sprint **S-003 (discovery, `auth-and-cache`)** has just closed. It produced four ADRs, two design artifacts, and one admin edit:
+Sprint **S-004 (implementation, `login-insights-cache-runnable-scanner`)** has just closed green. All four ADR-anchored Ready items shipped together:
 
-- **ADR-0004** — Supabase native phone OTP. No new outbound surface; refresh tokens shortened to 14 days; `auth.users` ↔ `public.users` linked via FK + sync trigger; explicit rejection of direct Twilio.
-- **ADR-0005** — Insights computation: PostgREST RPC functions for the math (`insights_summary_for_user`, `insights_top_products_for_user`); FastAPI orchestrates with Athens-TZ period boundaries; decimal-as-string responses; categories = `business_category` ∪ `"untagged"`.
-- **ADR-0006** — Offline cache: AsyncStorage substrate + AES-256-GCM via `@noble/ciphers` + key in `expo-secure-store`; LRU cap 200 receipts; sanitizer enforces a documented cacheable subset (`raw_html` never cached); offline UX banner + disabled-action rules.
-- **ADR-0007** — Expo runtime tree: SDK 51 with 17 runtime + 6 dev exact-pinned packages; `package-lock.json` committed; `npm ci` discipline; `EXPO_NO_TELEMETRY=1` default; gate re-inclusion of `ScannerScreen.tsx` + `mobile/src/api/receipts.ts`. Supply-chain review captured verbatim by `agent-safety-officer`.
-- **DES-0002** — Login screen UX (full state machine, Greek-first copy, accessibility, telemetry, phone-normalizer rules).
-- **DES-0003** — Insights screen UX (period selector, by-category / top-merchants / top-products sections, empty + offline states).
-- **BLG-0010 closed** — `AGENTS.md` §5.3.2 reconciled with ADR-0002 + ADR-0005. The body shape `{ "qr_url": string }` is now codified in `AGENTS.md` itself; `user_id` query parameters are removed from every endpoint; the §4.4 tie-breaker precedent is captured in the spec preamble.
+- **BLG-0012 — Expo runtime tree.** `mobile/package.json` now declares the ADR-0007 §2 exact-pinned set verbatim (17 runtime + 6 dev). `mobile/package-lock.json` regenerated. `mobile/.env.sample` extended with `EXPO_NO_TELEMETRY=1` and the §5.6 vars. `mobile/tsconfig.json` re-includes `src/screens/**/*.tsx` and `src/api/**/*` (the BLG-0003 carve-out is gone). `mobile/jest.config.js` adopted a two-project layout: `ts` (existing pure-TS suite under `ts-jest`) and `rn` (new render smoke tests under `jest-expo`). `mobile/babel.config.js` added with `babel-preset-expo` so RN's Flow polyfills parse under Jest.
+- **BLG-0005 — Phone-OTP login.** E.164 normalizer + DES-0002 reducer + `LoginScreen.tsx` against `@supabase/supabase-js`; `db/migrations/0002_handle_new_user.sql` ships the FK + sync trigger per ADR-0004 §3; refresh-token lifetime configured to 14 days. Greek `login.*` strings. No phone or OTP ever logged.
+- **BLG-0006 — Insights endpoints + screen.** `db/migrations/0003_insights_rpc.sql` (the two `plpgsql security invoker set search_path = public` RPCs per ADR-0005 §1, both with explicit `WHERE user_id = user_uuid` aggregation guards). Athens-TZ period helper. `InsightsRepository` interface + `InMemoryInsightsRepository` + `SupabaseInsightsRepository`. `GET /insights/summary` + `GET /insights/products` per ADR-0005 §4 with Bearer JWT verification. `mobile/src/screens/insights/InsightsScreen.tsx` renders DES-0003 §3.
+- **BLG-0007 — Encrypted offline cache.** `CacheRepository` interface + sanitizer (default-deny on unknown fields, `raw_html` explicitly dropped) + `InMemoryCacheRepository` (LRU at 200 by `last_seen_at`) + `EncryptedAsyncStorageCacheRepository` (AES-256-GCM via `@noble/ciphers/aes`, key in `expo-secure-store` under `wym.cache.aes-256-gcm.v1` per ADR-0006 §2, sanitizer-first + re-sanitize-on-decrypt for defense-in-depth). Greek `offline.*` strings.
 
-`make check` is green: 38 backend + 52 mobile = 90 tests (smoke check; no production code changed).
+`make check` is green: backend 70 + mobile 128 = 198 tests across 13+ suites.
 
-For the latest user-facing snapshot, read `AGENTS.md` §2.6 (shipped features unchanged this sprint) and §2.7 (sprint snapshot updated).
+Three follow-up backlog items were filed:
+
+- **BLG-0013** — codify `tzdata` as a Windows-host runtime dep (drift recorded mid-sprint to give Python's `zoneinfo` a tz database).
+- **BLG-0014** — re-evaluate `react-native-chart-kit` post-MVP per ADR-0007 §8.
+- **BLG-0015** — live `slow`-marked integration test for the insights RPCs against a Supabase test project.
+
+For the latest user-facing snapshot, read `AGENTS.md` §2.6 (shipped features now include Login, Insights, encrypted cache, runnable Scanner) and §2.7 (sprint snapshot updated).
 
 ## Next sprint
 
-- **Type**: `implementation`.
-- **Theme proposal**: `login-insights-cache-runnable-scanner`.
-- **Number**: **S-004**.
-- **Why implementation, not discovery**: the Ready queue has four well-formed items (BLG-0005, BLG-0006, BLG-0007, BLG-0012) — all four ADR-anchored, all four with testable acceptance bullets, all four sized for a delivery sprint. Per `AGENTS.md` §4.1.2, that's an implementation sprint.
+- **Type**: `discovery`.
+- **Theme proposal**: `freelancer-mode`.
+- **Number**: **S-005**.
+- **Why discovery, not implementation**: the four S-004 items shipped, the Ready queue is now empty (BLG-0004 / BLG-0009 / BLG-0011 are not Ready, and BLG-0013 / BLG-0014 / BLG-0015 are explicit discovery / post-MVP items). Per `AGENTS.md` §4.1.2, the next sprint must be discovery.
 
-### Goals for the implementation sprint S-004
+### Goals for the discovery sprint S-005
 
-The sprint pulls all four Ready items in one run; the contracts are tight enough that they fit together cleanly:
+The driving outcome is to unlock bullets **8 + 9** of `AGENTS.md` §2.8 — **a Greek freelancer can sign in, scan a receipt, tag it as a business expense, and export their tagged receipts as a PDF for their accountant**. S-005 produces the contracts; S-006 (implementation) ships the user-visible work.
 
-1. **BLG-0012 — Install + wire the Expo runtime tree FIRST.** This unblocks every other item. `mobile/package.json` declares the ADR-0007 §2 table; `mobile/package-lock.json` is committed in the same PR; `mobile/.env.sample` includes `EXPO_NO_TELEMETRY=1` + the §5.6 vars; `mobile/tsconfig.json` and `mobile/jest.config.js` switch to `jest-expo` and re-include the BLG-0003 carve-out files; the existing 52 mobile tests pass under the new preset; one render test for `ScannerScreen` lands as a smoke demo. Top-level `Makefile` switches `install-mobile` to `npm ci`.
-2. **BLG-0005 — Login screen + Supabase native OTP.** `mobile/src/lib/phone.ts` (E.164 normalizer); `mobile/src/screens/login/state.ts` (reducer per DES-0002 §2); `mobile/src/screens/login/LoginScreen.tsx` (renders DES-0002 §4 against `@supabase/supabase-js`); `db/migrations/<...>_handle_new_user.sql` (FK + sync trigger per ADR-0004 §3); refresh-token lifetime configured to 14 d; privacy notice + provider line per ADR-0004 §7. Greek strings under `login.*`. Telemetry counts only.
-3. **BLG-0006 — Insights endpoints + screen.** `db/migrations/<...>_insights_rpc.sql` (the two RPC functions per ADR-0005 §1); `backend/app/insights/period.py` (Athens-TZ helper); `backend/app/insights/repository.py` (interface + in-memory + Supabase); `backend/app/routes/insights.py` (two endpoints per ADR-0005 §4 with Bearer JWT verification per ADR-0002); contract tests assert exact JSON shape; `mobile/src/screens/insights/state.ts` + `InsightsScreen.tsx` per DES-0003.
-4. **BLG-0007 — Encrypted offline cache + offline UX.** `mobile/src/cache/types.ts` (`CacheRepository` interface); `InMemoryCacheRepository.ts` + `EncryptedAsyncStorageCacheRepository.ts`; sanitizer + LRU eviction at 200; key management via `expo-secure-store`; offline UX strings under `offline.*`; Home / Receipt detail / Insights / Scanner all honor the offline rules in ADR-0006 §7.
+1. **ADR for the tag-as-business UX.** Inline action on Receipt detail vs Profile-level "import all from period" vs both. Owners: `product-owner`, `product-manager`, `product-designer`, `mobile-builder`, `localization-specialist`. Output: a DES (Profile + tag-on-detail) and a Ready BLG for the mobile + backend implementation.
+2. **ADR for the PDF export pipeline.** Compare `reportlab` (Python, no new outbound surface), `weasyprint` (Python, brings GTK / Cairo / Pango deps that need `agent-safety-officer` review), and server-side `puppeteer` / `playwright` (Node, would add a new outbound surface — `agent-safety-officer` review required). Pick one with explicit trade-offs recorded. Owners: `architect`, `backend-builder`, `agent-safety-officer`, `engineering-manager`. Output: ADR + Ready BLG for the `GET /export/business-expenses` endpoint.
+3. **ADR for the inferred-category heuristic.** Deferred from ADR-0005 §6. Compare EAN-range tables, description-NLP heuristics, and "deferred-to-later". Owners: `architect`, `data-architect`, `parser-specialist`, `localization-specialist` (Greek-language description matching). Output: ADR (could be a "stay deferred until N receipts are tagged" decision).
+4. **`tzdata` codification (BLG-0013).** Either an ADR-0007 amendment or a new short ADR. Owners: `agent-safety-officer`, `engineering-manager`, `architect`.
+5. **Real-receipt fixture acquisition path (BLG-0004 follow-through).** Not blocking S-005, but a discovery sprint is the right time to firm up the consent + redaction process so `parser-specialist` can land 4 more triplets when consenting users are recruited. Owners: `parser-specialist`, `security-privacy-officer`.
 
 ### Sequencing rule
 
-**Land BLG-0012 first** in S-004. Every other item depends on the runtime tree being installed and the gate re-inclusion being live. Without BLG-0012 done first, BLG-0005's `LoginScreen.tsx` cannot be added to `make check`; same for the other screens.
+ADRs in S-005 should be debated **in the order above**. Tag-as-business UX shapes the schema impact; PDF pipeline shapes the outbound-surface posture (and may need `agent-safety-officer` to review a candidate dep tree before we agree); inferred-category is the lowest-priority of the three because "untagged" already works for MVP.
 
-### Acceptance test at S-004 review
+### Acceptance test at S-005 review (discovery)
 
-A real Greek user installs the Expo build, signs in via Supabase native OTP with their `+30` phone, scans a Greek receipt and sees it in ReceiptDetail in ≤ 5 s (`AGENTS.md` §2.5), opens Insights and sees this-month-vs-last with by-category and top-merchants, then kills the network and still sees the cached receipt list with the offline banner. All Greek-first per `localization-conventions.md`.
+By the end of S-005, the following exist on the main branch:
+
+- 1 ADR per S-005 goal (3 minimum — tag UX, PDF, inferred-category) plus the BLG-0013 ADR.
+- 1 DES per user-visible goal (Profile screen with freelancer toggle + ΑΦΜ field; Tag-on-receipt-detail flow).
+- ≥ 3 Ready backlog items for S-006 implementation (login + scan + insights are already done; freelancer-mode items go from `planned` to `ready`).
+- `make check` green (no production code changed in a discovery sprint; smoke check only).
 
 ### Cadence after that
 
-- **S-005 — discovery** — opens up freelancer mode (BLG to be created): tag-as-business UX for `POST /receipts/{receipt_id}/tag`, ΑΦΜ in Profile, PDF export endpoint contract `GET /export/business-expenses`, real-receipt fixture acquisition path (BLG-0004 follow-through).
-- After that, alternation continues per `AGENTS.md` §4.1.2.
+- **S-006 — implementation** — ship the freelancer items: tag endpoint (`POST /receipts/{id}/tag`), PDF export (`GET /export/business-expenses`), Profile screen (ΑΦΜ + freelancer toggle + export action), tag UX on Receipt detail. After S-006, MVP §2.8 is complete.
+- **S-007 — discovery** — open the door to country expansion (RO / IT / PT / ES adapters per §5.9). Or earlier if user feedback during S-006 reveals MVP gaps.
 
 ## Open questions queued for S-005 discovery
 
-- **Tag-as-business UX** (BLG to be created): inline action on Receipt detail vs Profile-level "import all from period" vs both.
-- **PDF export pipeline** (BLG to be created): `reportlab` vs `weasyprint` vs server-side `puppeteer` (the third would add a new outbound surface — `agent-safety-officer` review required).
-- **Inferred-category heuristic** (deferred from ADR-0005 §6): EAN range tables vs description NLP vs deferred-to-later.
-- **Real-receipt fixture acquisition** (BLG-0004): not blocking S-004; sourcing 4 more consenting receipts is a parallel ask of `parser-specialist` + `security-privacy-officer`.
-- **Drift-detection CI** (BLG-0009): unblocked once BLG-0004 produces ≥ 1 real-receipt canary; can land as part of S-005 implementation if the canary is ready.
+- **Tag-as-business UX** (goal 1): inline on Receipt detail vs Profile-level period import vs both.
+- **PDF export pipeline** (goal 2): `reportlab` (no new outbound surface, Python-pure) vs `weasyprint` (heavier deps) vs server-side rendering (new outbound surface).
+- **Inferred-category heuristic** (goal 3): activate now or stay deferred until N tagged receipts give us training data.
+- **`tzdata` ADR** (BLG-0013): standalone ADR vs ADR-0007 amendment.
+- **Drift-detection CI** (BLG-0009): unblocked once BLG-0004 produces ≥ 1 real-receipt canary; can land as part of S-006 implementation if the canary is ready.
 
 ## Notes for whoever picks this up
 
-- **The four S-004 items have one shared dependency: BLG-0012.** Land it first. Every screen, every test, every render asserts against the runtime tree pinned in ADR-0007.
-- **`AGENTS.md` §5.3.2 is now the spec source of truth.** ADR-0002 + ADR-0005 + the BLG-0010 edit all converge there. Future agents reading only `AGENTS.md` will not find the breached body shape.
-- **`agent-safety-officer` already signed off on the entire mobile dep tree in ADR-0007.** S-004 implementation does not need a fresh review unless `package.json` deviates from ADR-0007 §2's table (which it must not).
-- **Encryption key namespace**: `wym.cache.aes-256-gcm.v1` in `expo-secure-store`. The `v1` is intentional — if the cipher / key derivation ever changes, the new key namespace becomes `v2` and the old cache is silently dropped.
-- **Telemetry events are PII-free by ADR contract** (ADR-0003 §7, DES-0002 §6, DES-0003 §6). When adding new events, follow the same rule: counts only, no phone, no OTP, no JWT, no merchant-identifying data.
-- **Athens TZ is normative for period boundaries.** Greek users count their "April spend" by Greek calendar months. UTC is only used at the SQL boundary.
-- **`react-native-chart-kit` is on a re-evaluation watch.** If a better-maintained alternative emerges before S-004 lands, propose the swap as a small ADR before installing.
-- **PowerShell `make check` quirk**: bare `make check` in some PowerShell sessions misresolves the Makefile target. Use `& "C:\Program Files (x86)\GnuWin32\bin\make.exe" -f Makefile check` from PowerShell when in doubt. Logged in `S-003-LOG-0001`.
+- **The four S-004 items are done.** Login, Insights, encrypted cache, runnable Scanner all ship together. `AGENTS.md` §2.6 lists the user-visible behavior; `AGENTS.md` §2.7 carries the sprint snapshot.
+- **Discovery sprints don't ship production code.** S-005 produces ADRs + designs + Ready items. The simplest litmus test: `git diff main` for an S-005 sprint should touch `docs/`, `.agents/`, and `AGENTS.md` only.
+- **Three drift items** were recorded at S-004 close — BLG-0013 is the only one that strictly needs S-005 attention; BLG-0014 and BLG-0015 are passive watches.
+- **The Athens-TZ + decimal-as-string contract is now codified.** Any new aggregation endpoint (e.g. for the freelancer PDF) must follow the same shape. ADR-0005 is the source.
+- **`agent-safety-officer` will be busy in S-005**: the PDF pipeline ADR (goal 2) almost certainly needs an outbound-host review depending on which candidate wins.
+- **`mobile/babel.config.js` is now a permanent fixture** of the mobile project. Don't remove it — `jest-expo` needs it.
+- **PowerShell `make check` quirk**: bare `make check` in some PowerShell sessions still misresolves the Makefile target. Use `& "C:\Program Files (x86)\GnuWin32\bin\make.exe" -f Makefile check` from PowerShell when in doubt. Logged in `S-003-LOG-0001` and confirmed again in `S-004-LOG-0001`.
