@@ -10,7 +10,7 @@ S-004 (`implementation`, `login-insights-cache-runnable-scanner`) closed on 2026
 - **Insights** (BLG-0006): `GET /insights/summary` and `GET /insights/products` are live, both Bearer-JWT-protected; `mobile/src/screens/insights/InsightsScreen.tsx` renders the period selector, vs-previous comparison, by-category, top-merchants, and top-products sections from DES-0003.
 - **Encrypted offline cache** (BLG-0007): receipts read after sign-in are mirrored to AsyncStorage, encrypted with AES-256-GCM, with the key in `expo-secure-store`. LRU cap at 200. Offline UX banners and disabled-action rules from ADR-0006 §7.
 - **Runnable scanner** (BLG-0012): the Expo SDK 51 runtime tree from ADR-0007 §2 is installed and committed (`mobile/package-lock.json`); `ScannerScreen.tsx` and `mobile/src/api/receipts.ts` are back in the gate (typecheck + tests).
-- **Greek-first copy** for `login.`*, `insights.*`, and `offline.*` is in `mobile/src/i18n/strings.ts` with English fallback.
+- **Greek-first copy** for `login.`*, `insights.`*, and `offline.*` is in `mobile/src/i18n/strings.ts` with English fallback.
 - **Drift recorded**: `tzdata==2024.2` added to `backend/requirements.txt` so `zoneinfo` works on Windows hosts (BLG-0013, queued for S-005 review).
 
 ## How to verify (delivery sprint)
