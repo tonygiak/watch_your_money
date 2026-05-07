@@ -1,6 +1,6 @@
 # Expo runtime tree (pinned packages, supply-chain review, gate re-inclusion)
 
-Status: accepted
+Status: accepted; **§2 superseded-by ADR-0012** (Expo SDK 51 → 54 upgrade, 2026-05-07). §3 install discipline, §4 outbound surface, §5 test wiring, §6 gate re-inclusion, §7 EAS profiles, and §8 future re-evaluations remain in force.
 Date: 2026-04-30
 Chair: orchestrator
 Participants: agent-safety-officer, engineering-manager, mobile-builder, devops-engineer, architect, qa

@@ -11,7 +11,8 @@ python-dotenv==1.0.1
 # `tzdata` package is the official PSF-maintained data-only shim recommended
 # by the `zoneinfo` docs. Pinned here so `make check` is green on Windows
 # dev machines too. Linux production runtimes ignore it (the system db wins).
-# This addition was treated as drift in S-004 (BLG-0013); a proper
-# supply-chain review by `agent-safety-officer` will close out the drift in
-# the next discovery sprint per `AGENTS.md` §4.1.1 / §4.10.
+# This dep was added as drift in S-004 (BLG-0013) and codified by ADR-0011
+# in S-005 (`docs/adr/S-005-ADR-0011-Tzdata-codification.md`): standalone
+# ADR, exact pin, PyPI already on the outbound allowlist, refresh on every
+# `requirements.txt` audit.
 tzdata==2024.2
