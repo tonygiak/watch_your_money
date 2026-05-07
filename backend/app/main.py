@@ -9,10 +9,13 @@ from fastapi.responses import JSONResponse
 from app import __version__
 from app.auth import JwtError
 from app.errors import problem_response
+from app.routes.exports import router as exports_router
 from app.routes.health import router as health_router
 from app.routes.insights import router as insights_router
+from app.routes.receipt_tag import router as receipt_tag_router
 from app.routes.receipts import jwt_exception_handler
 from app.routes.receipts import router as receipts_router
+from app.routes.users import router as users_router
 
 app = FastAPI(
     title="Greek e-receipt finance app — backend",
@@ -50,4 +53,7 @@ async def _on_validation_error(
 
 app.include_router(health_router)
 app.include_router(receipts_router)
+app.include_router(receipt_tag_router)
 app.include_router(insights_router)
+app.include_router(users_router)
+app.include_router(exports_router)

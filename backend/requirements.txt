@@ -16,3 +16,12 @@ python-dotenv==1.0.1
 # ADR, exact pin, PyPI already on the outbound allowlist, refresh on every
 # `requirements.txt` audit.
 tzdata==2024.2
+# reportlab: pure-Python PDF generator chosen by ADR-0009
+# (`docs/adr/S-005-ADR-0009-Pdf-export-pipeline.md`). Renders the
+# `GET /export/business-expenses` PDF on the fly via `StreamingResponse`,
+# never persisted server-side, never logged. Greek glyphs are rendered via
+# the bundled DejaVuSans font; no system / native deps. Exact pin so
+# Railway / Render builders don't pick up a surprise upgrade. Supply-chain
+# review captured in ADR-0009 §Round 2 (co-signed by `agent-safety-officer`
+# + `engineering-manager`); PyPI already on the outbound allowlist.
+reportlab==4.2.5
