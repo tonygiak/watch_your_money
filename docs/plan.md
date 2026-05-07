@@ -4,79 +4,110 @@ The current direction of the project and the focus of the next sprint.
 
 ## Where we are right now
 
-Sprint **S-004 (implementation, `login-insights-cache-runnable-scanner`)** has just closed green. All four ADR-anchored Ready items shipped together:
+Sprint **S-005 (discovery, `freelancer-mode`)** has just closed. It settled the five contracts that gate every S-006 user-visible item plus the SDK-upgrade unblocker:
 
-- **BLG-0012 — Expo runtime tree.** `mobile/package.json` now declares the ADR-0007 §2 exact-pinned set verbatim (17 runtime + 6 dev). `mobile/package-lock.json` regenerated. `mobile/.env.sample` extended with `EXPO_NO_TELEMETRY=1` and the §5.6 vars. `mobile/tsconfig.json` re-includes `src/screens/**/*.tsx` and `src/api/**/*` (the BLG-0003 carve-out is gone). `mobile/jest.config.js` adopted a two-project layout: `ts` (existing pure-TS suite under `ts-jest`) and `rn` (new render smoke tests under `jest-expo`). `mobile/babel.config.js` added with `babel-preset-expo` so RN's Flow polyfills parse under Jest.
-- **BLG-0005 — Phone-OTP login.** E.164 normalizer + DES-0002 reducer + `LoginScreen.tsx` against `@supabase/supabase-js`; `db/migrations/0002_handle_new_user.sql` ships the FK + sync trigger per ADR-0004 §3; refresh-token lifetime configured to 14 days. Greek `login.*` strings. No phone or OTP ever logged.
-- **BLG-0006 — Insights endpoints + screen.** `db/migrations/0003_insights_rpc.sql` (the two `plpgsql security invoker set search_path = public` RPCs per ADR-0005 §1, both with explicit `WHERE user_id = user_uuid` aggregation guards). Athens-TZ period helper. `InsightsRepository` interface + `InMemoryInsightsRepository` + `SupabaseInsightsRepository`. `GET /insights/summary` + `GET /insights/products` per ADR-0005 §4 with Bearer JWT verification. `mobile/src/screens/insights/InsightsScreen.tsx` renders DES-0003 §3.
-- **BLG-0007 — Encrypted offline cache.** `CacheRepository` interface + sanitizer (default-deny on unknown fields, `raw_html` explicitly dropped) + `InMemoryCacheRepository` (LRU at 200 by `last_seen_at`) + `EncryptedAsyncStorageCacheRepository` (AES-256-GCM via `@noble/ciphers/aes`, key in `expo-secure-store` under `wym.cache.aes-256-gcm.v1` per ADR-0006 §2, sanitizer-first + re-sanitize-on-decrypt for defense-in-depth). Greek `offline.*` strings.
+- **ADR-0008 — Tag-as-business UX.** Inline tag-on-detail is the MVP critical path; Profile-level period import deferred. `POST /receipts/{id}/tag` Bearer-JWT-protected, body `{ is_business, category?, notes? }`, server-side trim + lowercase + length caps, idempotent 200, optimistic UI on the mobile client. No schema migration.
+- **ADR-0009 — PDF export pipeline.** `reportlab==4.2.5` — pure-Python, no system deps, no new outbound surface, full Greek glyph coverage via bundled `DejaVuSans`. PDF on-the-fly + `StreamingResponse`, never persisted server-side, never logged. `weasyprint` rejected (Cairo / Pango / GTK Dockerfile cost); server-side `puppeteer` rejected (would have added `storage.googleapis.com` to the allowlist).
+- **ADR-0010 — Inferred-category heuristic.** Stay deferred with three concrete re-evaluation triggers: ≥ 100 tagged receipts, OR explicit user demand, OR supply-chain shift. LLM-API call directly forbidden by `AGENTS.md` §2.4 — recorded as rejected so a future agent doesn't re-debate without amending §2.4.
+- **ADR-0011 — `tzdata` codification.** Standalone ADR; pin `tzdata==2024.2` in `backend/requirements.txt`. PSF-maintained data-only shim; PyPI already on the allowlist. Closes the BLG-0013 audit-trail gap from S-004.
+- **ADR-0012 — Expo SDK 51 → 54 upgrade.** Target SDK 54 (matches Expo Go on iOS / Android stores). `npx expo install --fix` + `expo-doctor` clean + atomic single-PR commit in S-006. **Supersedes ADR-0007 §2** (the version table) only; the discipline (exact pins, lockfile, telemetry-off, single-PR install) carries forward. Both existing in-tree compat-matrix warnings (`netinfo`, `typescript`) re-aligned to the SDK 54 matrix. Encryption stack from ADR-0006 must survive byte-identically — round-trip test is BLG-0016 acceptance bullet 5. `react-native-chart-kit` (BLG-0014) expected to survive; if not, BLG-0014 collapses into the same S-006 PR.
 
-`make check` is green: backend 70 + mobile 128 = 198 tests across 13+ suites.
+Two design artifacts landed:
 
-Three follow-up backlog items were filed:
+- **DES-0004** — Profile screen UX (layout, freelancer toggle, ΑΦΜ field with Greek MOD-11 validator, business-expenses PDF export with date-range picker, sign-out, accessibility, telemetry, full Greek copy).
+- **DES-0005** — Tag-as-business inline flow on Receipt detail (state machine, optimistic UI, length caps, accessibility, telemetry, full Greek copy).
 
-- **BLG-0013** — codify `tzdata` as a Windows-host runtime dep (drift recorded mid-sprint to give Python's `zoneinfo` a tz database).
-- **BLG-0014** — re-evaluate `react-native-chart-kit` post-MVP per ADR-0007 §8.
-- **BLG-0015** — live `slow`-marked integration test for the insights RPCs against a Supabase test project.
+`make check` is green: backend 70 + mobile 128 = 198 tests across 13 suites — same as S-004 close (the only production-code touch was a comment-only update in `backend/requirements.txt`). Sprint smoke check confirmed.
 
-A fourth item was filed during the post-close S-004 UREV walk-through (2026-05-07):
+One backlog item closed in-sprint:
 
-- **BLG-0016** — upgrade Expo SDK 51 → 54. On-device verification of the S-004 UREV acceptance script was blocked because Expo Go for iOS only ships the latest SDK (54), while ADR-0007 §2 pins us to SDK 51. `make check` stays green and the backend boots cleanly; only the on-device runtime path is blocked. The ADR debate happens in S-005; the upgrade ships in S-006 (or earlier if it gates the freelancer-mode acceptance test on a real device).
+- **BLG-0013** (`tzdata` codification) — moved to `docs/done.md` via the comment-only update anchored to ADR-0011.
 
-For the latest user-facing snapshot, read `AGENTS.md` §2.6 (shipped features now include Login, Insights, encrypted cache, runnable Scanner) and §2.7 (sprint snapshot updated).
+Four backlog items refined to **Ready** for S-006:
+
+- **BLG-0016** — Expo SDK 51 → 54 upgrade.
+- **BLG-0017** — Profile screen + freelancer toggle + ΑΦΜ field + sign-out (mobile + thin backend `PATCH /users/me`).
+- **BLG-0018** — Tag-as-business endpoint + Receipt-detail UX.
+- **BLG-0019** — PDF export endpoint + Profile export action.
+
+Five backlog items stay planned: BLG-0004 (real-receipt fixtures), BLG-0009 (drift-detection CI), BLG-0011 (Profile language switch — out of MVP), BLG-0014 (`react-native-chart-kit` re-eval — cross-referenced to ADR-0012 §6), BLG-0015 (live insights-RPC integration test).
+
+For the latest user-facing snapshot, read `AGENTS.md` §2.6 (shipped features unchanged from S-004 — Login, Insights, encrypted cache, runnable Scanner) and §2.7 (sprint snapshot now reflects S-005 closing).
 
 ## Next sprint
 
-- **Type**: `discovery`.
-- **Theme proposal**: `freelancer-mode`.
-- **Number**: **S-005**.
-- **Why discovery, not implementation**: the four S-004 items shipped, the Ready queue is now empty (BLG-0004 / BLG-0009 / BLG-0011 are not Ready, and BLG-0013 / BLG-0014 / BLG-0015 are explicit discovery / post-MVP items). Per `AGENTS.md` §4.1.2, the next sprint must be discovery.
+- **Type**: `implementation`.
+- **Theme proposal**: `freelancer-mode-and-sdk-upgrade`.
+- **Number**: **S-006**.
+- **Why implementation, not discovery**: four items (BLG-0016, BLG-0017, BLG-0018, BLG-0019) are now Ready per `AGENTS.md` §4.1.3. Per `AGENTS.md` §4.1.2, an implementation sprint must follow when the Ready queue is non-empty.
 
-### Goals for the discovery sprint S-005
+### Goals for the implementation sprint S-006
 
-The driving outcome is to unlock bullets **8 + 9** of `AGENTS.md` §2.8 — **a Greek freelancer can sign in, scan a receipt, tag it as a business expense, and export their tagged receipts as a PDF for their accountant**. S-005 produces the contracts; S-006 (implementation) ships the user-visible work.
+The driving outcome is to **close `AGENTS.md` §2.8 bullets 8 + 9** (tag a receipt as a business expense; export tagged business expenses as a PDF) **and** restore on-device verification on stock Expo Go. After S-006, every bullet in §2.8 is reachable end-to-end on a real Greek consumer's phone.
 
-1. **ADR for the tag-as-business UX.** Inline action on Receipt detail vs Profile-level "import all from period" vs both. Owners: `product-owner`, `product-manager`, `product-designer`, `mobile-builder`, `localization-specialist`. Output: a DES (Profile + tag-on-detail) and a Ready BLG for the mobile + backend implementation.
-2. **ADR for the PDF export pipeline.** Compare `reportlab` (Python, no new outbound surface), `weasyprint` (Python, brings GTK / Cairo / Pango deps that need `agent-safety-officer` review), and server-side `puppeteer` / `playwright` (Node, would add a new outbound surface — `agent-safety-officer` review required). Pick one with explicit trade-offs recorded. Owners: `architect`, `backend-builder`, `agent-safety-officer`, `engineering-manager`. Output: ADR + Ready BLG for the `GET /export/business-expenses` endpoint.
-3. **ADR for the inferred-category heuristic.** Deferred from ADR-0005 §6. Compare EAN-range tables, description-NLP heuristics, and "deferred-to-later". Owners: `architect`, `data-architect`, `parser-specialist`, `localization-specialist` (Greek-language description matching). Output: ADR (could be a "stay deferred until N receipts are tagged" decision).
-4. **`tzdata` codification (BLG-0013).** Either an ADR-0007 amendment or a new short ADR. Owners: `agent-safety-officer`, `engineering-manager`, `architect`.
-5. **Expo SDK 51 → 54 upgrade ADR (BLG-0016).** Discovered post-close during S-004 UREV: Expo Go for iOS doesn't ship older SDK runtimes, so on-device verification is blocked. Decide target SDK version, upgrade strategy (`npx expo install --fix` + `expo-doctor` vs manual pin update), and surviving deps. Owners: `architect`, `engineering-manager`, `agent-safety-officer` (supply-chain — major SDK rev), `mobile-builder`. Output: ADR amending or superseding ADR-0007, plus a Ready BLG sized to S-006.
-6. **Real-receipt fixture acquisition path (BLG-0004 follow-through).** Not blocking S-005, but a discovery sprint is the right time to firm up the consent + redaction process so `parser-specialist` can land 4 more triplets when consenting users are recruited. Owners: `parser-specialist`, `security-privacy-officer`.
+1. **BLG-0016 — Expo SDK 51 → 54 upgrade. Land first.** Per ADR-0012, `npx expo install --fix` against a clean clone, `expo-doctor` until clean, regenerate `mobile/package-lock.json`, atomic single-PR commit including `eas.json` profile bumps. Run the encryption-stack round-trip test (BLG-0016 acceptance bullet 5) before merge — pre-upgrade encrypted state must decrypt byte-identically under SDK 54. If `react-native-chart-kit` doesn't survive, BLG-0014 collapses into the same PR with a swap. **This must merge first** so the freelancer-mode UREV (BLG-0017 / 0018 / 0019) can be exercised on a real Expo Go device end-to-end.
+2. **BLG-0017 — Profile screen.** Implement DES-0004: `mobile/src/screens/profile/ProfileScreen.tsx` + `mobile/src/screens/profile/state.ts` reducer + `mobile/src/lib/afm.ts` Greek MOD-11 validator + `mobile/src/api/profile.ts` Bearer-JWT client. Backend: `PATCH /users/me` per DES-0004 §4 with `extra="forbid"`, server-side ΑΦΜ MOD-11 validation, idempotent partial update. Sign-out rotates `wym.cache.aes-256-gcm.v1` per DES-0004 §3.5.
+3. **BLG-0018 — Tag-as-business endpoint + Receipt-detail UX.** Implement ADR-0008 + DES-0005: `mobile/src/screens/receipt/tag.state.ts` + `mobile/src/screens/receipt/TagPanel.tsx` (or inline in `ReceiptDetailScreen.tsx`). Backend: `POST /receipts/{id}/tag` per ADR-0008 §2, RLS + WHERE-guard, idempotent 200, response = full updated receipt. Greek `tag.*` strings.
+4. **BLG-0019 — PDF export endpoint + Profile export action.** Implement ADR-0009 + DES-0004 §3.4: `backend/app/exports/business_expenses.py` query helper + `reportlab` PDF generator + `GET /export/business-expenses` route with `StreamingResponse`. Mobile: date-range picker on Profile screen + native share sheet via `expo-sharing` (or replacement if SDK 54 changes the dep). Greek `profile.export.*` strings.
+5. **`make check` green at sprint close.** New tests added (per BLG acceptance bullets); existing 198 tests unchanged in shape. Aim: ~250 tests at S-006 close.
+6. **Update `AGENTS.md` §2.6** (shipped features now include freelancer mode + PDF export) and §2.7 (S-006 close snapshot).
 
 ### Sequencing rule
 
-ADRs in S-005 should be debated **in the order above**. Tag-as-business UX shapes the schema impact; PDF pipeline shapes the outbound-surface posture (and may need `agent-safety-officer` to review a candidate dep tree before we agree); inferred-category is the lowest-priority of the three because "untagged" already works for MVP. The Expo SDK upgrade (goal 5) can be debated in parallel with goals 1–3 since it's mobile-runtime scoped and does not interact with the freelancer schema or the PDF pipeline; it slots into S-006 implementation alongside (or just before) the freelancer items.
+S-006 sequences as **BLG-0016 first** (the SDK upgrade), then BLG-0017 / BLG-0018 / BLG-0019 in any order (or in parallel — they touch different surfaces: BLG-0017 = Profile screen + `users` write path; BLG-0018 = Receipt detail + `receipts` write path; BLG-0019 = Profile screen *and* a backend route + `reportlab`). Three reasonable strategies:
 
-### Acceptance test at S-005 review (discovery)
+- **Strategy A (sequential)**: BLG-0016 → BLG-0017 → BLG-0018 → BLG-0019. Lowest cognitive load, easiest reviews. Slowest.
+- **Strategy B (parallel)**: BLG-0016 lands first, then 0017 / 0018 / 0019 ride three feature branches in parallel. Fastest. Highest merge-conflict risk on `mobile/src/screens/profile/ProfileScreen.tsx` between BLG-0017 and BLG-0019 (both touch the Profile screen).
+- **Strategy C (recommended)**: BLG-0016 first; then BLG-0018 (entirely separate surface — Receipt detail + new endpoint) and BLG-0017 in parallel; then BLG-0019 last (depends on BLG-0017 having landed the Profile screen scaffold). Balances speed and merge sanity.
 
-By the end of S-005, the following exist on the main branch:
+S-006's `S-006-PLN-0001` should pick a strategy explicitly and record the choice.
 
-- 1 ADR per S-005 goal (3 minimum — tag UX, PDF, inferred-category) plus the BLG-0013 (`tzdata`) ADR and the BLG-0016 (Expo SDK upgrade) ADR.
-- 1 DES per user-visible goal (Profile screen with freelancer toggle + ΑΦΜ field; Tag-on-receipt-detail flow).
-- ≥ 4 Ready backlog items for S-006 implementation (freelancer-mode items go from `planned` to `ready`, plus BLG-0016 goes from `planned` to `ready`).
-- `make check` green (no production code changed in a discovery sprint; smoke check only).
+### Acceptance test at S-006 review (implementation)
+
+By the end of S-006:
+
+- A real Greek freelancer with **stock Expo Go** (iOS or Android, latest store version) can:
+  1. Sign in with their `+30` phone via Supabase native OTP.
+  2. Scan a Greek `e-invoicing.gr` QR.
+  3. Open the receipt and **tag it as a business expense** with a Greek category (e.g. `groceries`) and optional notes.
+  4. Open Insights and confirm the tagged receipt's category appears in the by-category rollup.
+  5. Open Profile, toggle freelancer mode on, type their ΑΦΜ (validated against the Greek MOD-11 checksum), save it.
+  6. Choose a date range that includes the tagged receipt and tap "Δημιουργία PDF".
+  7. Receive the streamed PDF via the native share sheet, open it (in Mail / Drive / Files / etc.), and see the cover (title + ΑΦΜ + range), the totals block, and the tagged receipt with its category and notes — all in Greek-rendered text.
+  8. Sign out — the cache key namespace is rotated; the next sign-in by a different user starts with a clean cache.
+- The encryption-stack round-trip test (BLG-0016 acceptance bullet 5) passes.
+- `expo-doctor` reports zero compat-matrix warnings.
+- `expo start` no longer prints the "packages should be updated for best compatibility" block.
+- `make check`: ~250 tests, **green**.
+- The eight `AGENTS.md` §4.11 sign-offs are recorded in `S-006-REV-0001`:
+  - New endpoint / API contract: `architect` + `engineering-manager` (BLG-0017 / 0018 / 0019).
+  - New mobile screen / UX flow: `product-designer` + `localization-specialist` (BLG-0017 / 0018 / 0019).
+  - User-data flow: `security-privacy-officer` (BLG-0017 / 0018 / 0019 — ΑΦΜ as identifying data; `notes` never logged; PDF never persisted).
+  - New runtime dependency: `agent-safety-officer` + `engineering-manager` (BLG-0016 supply-chain delta; BLG-0019 `reportlab`).
+  - Schema migration: none (verified by `data-architect`).
+  - Auth flow change: none.
+  - Sprint scope change mid-sprint: none expected.
+  - Adding / retiring an agent: none.
 
 ### Cadence after that
 
-- **S-006 — implementation** — ship: (a) the **Expo SDK upgrade** (BLG-0016) so on-device acceptance tests can run on stock Expo Go again, and (b) the freelancer items: tag endpoint (`POST /receipts/{id}/tag`), PDF export (`GET /export/business-expenses`), Profile screen (ΑΦΜ + freelancer toggle + export action), tag UX on Receipt detail. The SDK upgrade should land **first** in S-006 so the freelancer-mode UREV acceptance test can be exercised on a real device. After S-006, MVP §2.8 is complete.
-- **S-007 — discovery** — open the door to country expansion (RO / IT / PT / ES adapters per §5.9). Or earlier if user feedback during S-006 reveals MVP gaps.
+- **S-007 — discovery (likely)** — opens the door to one of: (a) country expansion (RO / IT / PT / ES adapters per `AGENTS.md` §5.9 — first non-GR adapter ADR), (b) BLG-0004 + BLG-0009 (real-receipt fixtures + drift-detection CI) if consenting users have come forward, (c) post-MVP UX gaps surfaced by user feedback during S-006. Choice driven by `product-owner` / `product-manager` reading actual S-006 user response.
+- **S-008 — implementation** — whichever S-007 ADRs settle into Ready items.
 
-## Open questions queued for S-005 discovery
+## Open questions queued for S-006 implementation
 
-- **Tag-as-business UX** (goal 1): inline on Receipt detail vs Profile-level period import vs both.
-- **PDF export pipeline** (goal 2): `reportlab` (no new outbound surface, Python-pure) vs `weasyprint` (heavier deps) vs server-side rendering (new outbound surface).
-- **Inferred-category heuristic** (goal 3): activate now or stay deferred until N tagged receipts give us training data.
-- **`tzdata` ADR** (BLG-0013): standalone ADR vs ADR-0007 amendment.
-- **Expo SDK upgrade target** (goal 5, BLG-0016): SDK 54 (current latest) vs whatever ships at the time S-005 closes. Strategy: `npx expo install --fix` + `expo-doctor` vs hand-pinned tree. Survival check for `react-native-chart-kit` (BLG-0014 may resolve into this), `@noble/ciphers`, `expo-secure-store`, `expo-camera`, `@supabase/supabase-js`. Whether ADR-0007 is amended or superseded. Two existing compat-matrix warnings (`@react-native-community/netinfo@11.3.2` vs SDK 51 expected `11.3.1`; `typescript@5.6.3` vs SDK 51 expected `~5.3.3`) must be addressed by the same ADR — re-align or record deliberate deviation.
-- **Drift-detection CI** (BLG-0009): unblocked once BLG-0004 produces ≥ 1 real-receipt canary; can land as part of S-006 implementation if the canary is ready.
+- **`expo-sharing` survival under SDK 54** — if it doesn't survive, BLG-0019 picks a replacement (`react-native-share` is the most common alternative); `agent-safety-officer` review folded into BLG-0019.
+- **`DateTimePicker` choice** — DES-0004 §9 leaves `@react-native-community/datetimepicker` as the default contingent on SDK 54 compatibility. If the SDK 54 expected matrix doesn't include it, `mobile-builder` picks a small alternative; `agent-safety-officer` review folded into BLG-0019 or BLG-0017.
+- **Toast UI library** — DES-0005 §9 leaves the toast / non-blocking-notification choice to the implementer. If a new dep is needed, `agent-safety-officer` reviews; if not (a tiny custom toast is fine), no allowlist or ADR change.
+- **`react-native-chart-kit` survival under SDK 54** — covered by ADR-0012 §6: if it doesn't survive, BLG-0014 collapses into BLG-0016. Nothing more to decide pre-S-006.
+- **Encryption-stack round-trip test wiring** — BLG-0016 acceptance bullet 5. If pre-upgrade encrypted state can't be reproduced cleanly (e.g. the test infrastructure can't set up a "before" state), the alternative is a forward-only test: encrypt + decrypt both under SDK 54 with a known plaintext, asserting the AES-256-GCM round-trip is unbroken. ADR-0006 §2 says nothing about the test wiring; `mobile-builder` + `qa` pick the cleanest path.
 
 ## Notes for whoever picks this up
 
-- **The four S-004 items are done.** Login, Insights, encrypted cache, runnable Scanner all ship together. `AGENTS.md` §2.6 lists the user-visible behavior; `AGENTS.md` §2.7 carries the sprint snapshot.
-- **Discovery sprints don't ship production code.** S-005 produces ADRs + designs + Ready items. The simplest litmus test: `git diff main` for an S-005 sprint should touch `docs/`, `.agents/`, and `AGENTS.md` only.
-- **Four drift / follow-up items** were recorded around S-004 — BLG-0013 (`tzdata`) and BLG-0016 (Expo SDK upgrade) need S-005 attention; BLG-0014 (chart-kit) and BLG-0015 (live insights-RPC test) are passive watches.
-- **BLG-0016 was discovered post-close** during the S-004 UREV walk-through (2026-05-07): on-device verification was blocked by Expo Go SDK mismatch (Go ships SDK 54, project pinned to SDK 51 per ADR-0007). Backend, migrations, and `make check` all verified green; only the on-device path is blocked. The fix is sized to S-006 implementation but the ADR debate happens in S-005.
-- **The Athens-TZ + decimal-as-string contract is now codified.** Any new aggregation endpoint (e.g. for the freelancer PDF) must follow the same shape. ADR-0005 is the source.
-- **`agent-safety-officer` will be busy in S-005**: the PDF pipeline ADR (goal 2) almost certainly needs an outbound-host review depending on which candidate wins.
-- **`mobile/babel.config.js` is now a permanent fixture** of the mobile project. Don't remove it — `jest-expo` needs it.
-- **PowerShell `make check` quirk**: bare `make check` in some PowerShell sessions still misresolves the Makefile target. Use `& "C:\Program Files (x86)\GnuWin32\bin\make.exe" -f Makefile check` from PowerShell when in doubt. Logged in `S-003-LOG-0001` and confirmed again in `S-004-LOG-0001`.
+- **The five S-005 ADRs are done.** Tag UX, PDF pipeline, inferred-category posture, `tzdata` codification, and the SDK 54 upgrade plan all locked. `AGENTS.md` §2.6 lists what's *shipped* (still S-004's set); §2.7 carries the S-005 close snapshot; S-006 ships the rest of MVP.
+- **Implementation sprints don't take new architectural decisions.** S-006 implements against ADR-0008..0012 and DES-0004..0005. If S-006 hits an unexpected decision, it's logged as `drift` in the backlog and queued for the next discovery sprint; the simplest temporary path is taken to keep `make check` green.
+- **BLG-0016 lands first.** Without it, the on-device acceptance test in S-006-UREV-0001 cannot run on stock Expo Go — same blocker that surfaced in S-004 UREV addendum. Sequence is non-negotiable for the §2.8 mobile-first acceptance bar.
+- **The PDF must never be persisted server-side.** ADR-0009 §3 is hard. Any S-006 implementation that buffers the PDF to disk (caching, "draft" preview, etc.) is drift and needs an ADR-0009 amendment first.
+- **`category` is lowercased server-side, not client-side.** The mobile client preserves the user's input as typed; the server normalizes. This is what makes the by-category rollup collapse `"Groceries"` and `"groceries"` correctly.
+- **The encryption stack contract** — `@noble/ciphers` AES-256-GCM, key in `expo-secure-store` under `wym.cache.aes-256-gcm.v1`, IV via `expo-crypto.randomBytes(12)` — must survive the SDK 54 upgrade byte-identically. If any of those changes behavior, the upgrade blocks until ADR-0006 amends. This is BLG-0016 acceptance bullet 5 and ADR-0012 §5.
+- **PowerShell `make check` quirk persists**: bare `make check` may misresolve the target on some PowerShell sessions; use `& "C:\Program Files (x86)\GnuWin32\bin\make.exe" -f Makefile check`. Logged in `S-003-LOG-0001`, `S-004-LOG-0001`, and `S-005-LOG-0001`. PowerShell's stderr stream tags Jest "PASS rn..." lines as `NativeCommandError` — cosmetic, exit code 0 is the source of truth.

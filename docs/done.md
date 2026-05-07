@@ -4,6 +4,38 @@ Append-only ledger of everything **completed**, grouped by sprint, newest on top
 
 ---
 
+## Sprint S-005 — Freelancer-mode (closed 2026-05-07)
+
+> Discovery sprint. Settled the five contracts that gate every S-006 user-visible item: tag-as-business UX, PDF export pipeline, inferred-category posture, `tzdata` codification, and the Expo SDK 51 → 54 upgrade. Plus one in-sprint admin (BLG-0013 — `tzdata` comment update anchored to ADR-0011).
+
+- **BLG-0013 — `tzdata` codification (Windows-host `zoneinfo` requirement).** ADR-0011 (`docs/adr/S-005-ADR-0011-Tzdata-codification.md`) — standalone ADR, exact pin (`tzdata==2024.2`), PyPI already on the outbound allowlist, refresh on every `requirements.txt` audit, no Dockerfile change. The comment block in `backend/requirements.txt` above the `tzdata==2024.2` line was updated to point at ADR-0011 instead of the "next discovery sprint" placeholder. Sign-offs: `agent-safety-officer` + `engineering-manager` (supply-chain — runtime dep retroactively codified per `AGENTS.md` §4.11), `architect` (no architectural impact), `orchestrator` (sprint LOG records the change). Closes the audit-trail gap from S-004 drift.
+
+Plus five ADRs (which stay in `docs/adr/`, NOT in `docs/done.md` — discovery output):
+
+- **ADR-0008** — *Tag-as-business UX.* Inline tag-on-detail is the MVP critical path; Profile-level period import is a future BLG (not opened in S-005). Endpoint: `POST /receipts/{id}/tag` Bearer-JWT-protected, body `{ is_business, category?, notes? }` with server-side trim + lowercase + length caps. Free-text `category` for MVP; lowercased server-side so the `/insights/summary` `by_category` rollup collapses inputs that differ only in case.
+- **ADR-0009** — *PDF export pipeline.* `reportlab==4.2.5` — pure-Python, no system deps, no new outbound surface, full Greek glyph coverage via bundled `DejaVuSans`. PDF generated on-the-fly, streamed back to client (`StreamingResponse`), **never** written to disk, **never** logged. `weasyprint` rejected (Cairo / Pango / GTK Dockerfile cost); `puppeteer` rejected (would require adding `storage.googleapis.com` to the outbound allowlist). Endpoint: `GET /export/business-expenses?from_date=...&to_date=...` with 366-day range cap.
+- **ADR-0010** — *Inferred-category heuristic.* **Stay deferred** with three concrete re-evaluation triggers: ≥ 100 receipts have populated `business_category`, OR explicit user demand surfaces, OR the supply-chain landscape shifts (e.g. an open Greek-language category model becomes available, or `AGENTS.md` §2.4 is amended). LLM-API call directly forbidden by §2.4 — recorded as rejected so a future agent doesn't re-debate without amending §2.4 first.
+- **ADR-0011** — *`tzdata` codification.* See BLG-0013 entry above.
+- **ADR-0012** — *Expo SDK 51 → 54 upgrade.* Target SDK 54 (matches Expo Go on iOS / Android stores). Strategy: `npx expo install --fix` + `expo-doctor` clean + regenerate `mobile/package-lock.json` + atomic single-PR commit. **Supersedes ADR-0007 §2** (the version table) — ADR-0007's other sections (install discipline, outbound surface, test wiring, gate re-inclusion, EAS profiles, future re-evaluations) remain in force. Both existing in-tree compat-matrix warnings (`netinfo`, `typescript`) re-aligned to the SDK 54 matrix; deliberate-deviation option rejected absent a fresh reason. Encryption stack from ADR-0006 must survive byte-identically (round-trip test in S-006). `react-native-chart-kit` (BLG-0014) expected to survive; if not, BLG-0014 collapses into the same S-006 PR.
+
+Plus two design artifacts (in the sprint folder, NOT in `docs/done.md`):
+
+- **DES-0004** — *Profile screen UX.* Layout, freelancer toggle, ΑΦΜ field (Greek MOD-11 validator), business-expenses PDF export action with date-range picker, sign-out (rotates the cache key on the way out), accessibility, telemetry, full Greek copy.
+- **DES-0005** — *Tag-as-business flow on Receipt detail.* Inline state machine, optimistic UI (toggle flip), category text input + notes textarea, length caps, accessibility, telemetry, full Greek copy.
+
+Plus four backlog items refined to **Ready** for S-006 implementation (NOT yet done — wait for S-006):
+
+- BLG-0016 (Expo SDK 51 → 54 upgrade) — anchored to ADR-0012.
+- BLG-0017 (Profile screen + freelancer toggle + ΑΦΜ field + sign-out) — anchored to DES-0004 + ADR-0008 §4.
+- BLG-0018 (Tag-as-business endpoint + Receipt-detail UX) — anchored to ADR-0008 + DES-0005.
+- BLG-0019 (PDF export endpoint + Profile export action) — anchored to ADR-0009 + DES-0004 §3.4.
+
+Sign-offs (sprint review per §4.11): `architect` + `engineering-manager` (ADR-0008 API contract, ADR-0012 SDK choice), `product-designer` + `localization-specialist` (DES-0004, DES-0005, ADR-0008 UX), `architect` + `engineering-manager` + `agent-safety-officer` (ADR-0009 supply-chain + new dep, ADR-0012 supply-chain + transitive re-pin), `agent-safety-officer` + `engineering-manager` + `architect` (ADR-0011 retroactive runtime-dep codification), `data-architect` + `parser-specialist` + `architect` + `localization-specialist` (ADR-0010 deferral with re-eval triggers), `security-privacy-officer` (ADR-0008 user-data write path, ADR-0009 PDF data-flow contract, ADR-0012 encryption-stack survival), `devops-engineer` (ADR-0009 deploy footprint unchanged, ADR-0012 EAS profile bumps), `qa` (acceptance bullets are testable on every BLG), `orchestrator` (sprint review + chair on all five ADRs).
+
+`make check` at sprint close: 70 backend + 128 mobile = 198 tests across 13 suites — **green** (smoke check; the only production-code touch was the comment-only update in `backend/requirements.txt` above `tzdata==2024.2`; pin byte-identical).
+
+---
+
 ## Sprint S-004 — Login-insights-cache-runnable-scanner (closed 2026-04-30)
 
 > First implementation sprint after S-003. All four ADR-anchored Ready items shipped together: phone-OTP login, insights endpoints + screen, encrypted offline cache, and the runnable Expo runtime tree (which lifted the BLG-0003 carve-out). This sprint takes the app from "scan-and-store works" (S-002) to "a Greek user can install, sign in, scan, see insights, and stay useful offline" — `AGENTS.md` §2.8 is reachable end-to-end with only freelancer mode left.
