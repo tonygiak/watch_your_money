@@ -28,6 +28,8 @@ import { exportBusinessExpenses } from "../../api/exports";
 import { patchMe } from "../../api/users";
 import { rotateCacheKeyOnSignOut } from "../../cache/rotate";
 import { t } from "../../lib/i18n";
+import { defaultShareImpl } from "../../lib/share";
+import DateField from "./DateField";
 import {
   AFM_MAX_INPUT_LEN,
   initialProfileState,
@@ -50,10 +52,12 @@ export type ProfileScreenProps = {
   /** Plug-in for `supabase.auth.signOut()`. Default = no-op for tests. */
   signOutImpl?: () => Promise<void>;
 
-  /** Plug-in for the share sheet (`expo-sharing`). Receives the base64 PDF
-   *  bytes + the suggested filename. Default = no-op for tests. The wiring
-   *  to ``expo-file-system.writeAsStringAsync`` + ``expo-sharing.shareAsync``
-   *  lives in the host App component. */
+  /** Plug-in for the share sheet. Receives the base64 PDF bytes + the
+   *  suggested filename. When omitted, the screen falls back to
+   *  `defaultShareImpl` from ``mobile/src/lib/share.ts``, which composes
+   *  ``expo-file-system.writeAsStringAsync`` + ``expo-sharing.shareAsync``
+   *  (BLG-0020). Tests inject a fake to keep the native deps off the test
+   *  path. */
   shareImpl?: (args: {
     base64: string;
     filename: string;
@@ -151,16 +155,15 @@ export default function ProfileScreen(props: ProfileScreenProps): JSX.Element {
       });
       if (cancelled) return;
       if (result.kind === "ok") {
-        if (props.shareImpl) {
-          try {
-            await props.shareImpl({
-              base64: result.base64,
-              filename: result.filename,
-            });
-          } catch {
-            // Share dismissal / failure isn't a hard error — the export
-            // succeeded server-side.
-          }
+        const shareFn = props.shareImpl ?? defaultShareImpl;
+        try {
+          await shareFn({
+            base64: result.base64,
+            filename: result.filename,
+          });
+        } catch {
+          // Share dismissal / failure isn't a hard error — the export
+          // succeeded server-side.
         }
         if (!cancelled) dispatch({ type: "EXPORT_DONE" });
       } else if (result.status === 401) {
@@ -369,21 +372,17 @@ export default function ProfileScreen(props: ProfileScreenProps): JSX.Element {
                 <Text style={styles.dateLabel}>
                   {t("profile.export.from_label")}
                 </Text>
-                <TextInput
-                  accessibilityLabel={t("profile.export.from_label")}
-                  accessibilityHint="YYYY-MM-DD"
-                  style={[
-                    styles.input,
-                    state.validationError?.field === "from_date" &&
-                      styles.inputError,
-                  ]}
+                <DateField
                   value={state.exportFromDate}
-                  onChangeText={onExportFromChanged}
-                  placeholder="YYYY-MM-DD"
-                  autoCapitalize="none"
-                  autoCorrect={false}
+                  onChange={onExportFromChanged}
+                  accessibilityLabel={t("profile.export.from_label")}
                   editable={
                     !props.isOffline && state.status !== "exporting"
+                  }
+                  errorMessage={
+                    state.validationError?.field === "from_date"
+                      ? t(state.validationError.messageKey)
+                      : undefined
                   }
                 />
               </View>
@@ -391,21 +390,17 @@ export default function ProfileScreen(props: ProfileScreenProps): JSX.Element {
                 <Text style={styles.dateLabel}>
                   {t("profile.export.to_label")}
                 </Text>
-                <TextInput
-                  accessibilityLabel={t("profile.export.to_label")}
-                  accessibilityHint="YYYY-MM-DD"
-                  style={[
-                    styles.input,
-                    state.validationError?.field === "to_date" &&
-                      styles.inputError,
-                  ]}
+                <DateField
                   value={state.exportToDate}
-                  onChangeText={onExportToChanged}
-                  placeholder="YYYY-MM-DD"
-                  autoCapitalize="none"
-                  autoCorrect={false}
+                  onChange={onExportToChanged}
+                  accessibilityLabel={t("profile.export.to_label")}
                   editable={
                     !props.isOffline && state.status !== "exporting"
+                  }
+                  errorMessage={
+                    state.validationError?.field === "to_date"
+                      ? t(state.validationError.messageKey)
+                      : undefined
                   }
                 />
               </View>

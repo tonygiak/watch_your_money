@@ -2,9 +2,9 @@
 
 Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `docs/templates/backlog-item.md`. When an item completes, **move** (don't duplicate) it into `docs/done.md`.
 
-> S-006 (`freelancer-mode-and-sdk-upgrade`) closed: BLG-0017, BLG-0018, BLG-0019 shipped end-to-end at the contract level; **BLG-0016 (Expo SDK 51 → 54 upgrade) deferred to S-007** per `AGENTS.md` §4.10 (npm registry unreachable when probing the SDK 54 compat matrix). The deferral keeps the in-tree SDK 51 pin set and the encryption stack from ADR-0006 §2 byte-identical. `make check` is green: 143 backend + 197 mobile = 340 tests across 21 suites (+142 vs. S-005 close). See `docs/done.md` Sprint S-006 entry for the full per-BLG outcomes.
+> S-007 (`sdk-upgrade-and-on-device-acceptance`) closed: BLG-0020, BLG-0021 shipped at the contract level (lazy-require + graceful fallback so the wiring degrades cleanly under SDK 51 and turns on the moment the SDK 54 tree lands). BLG-0016 acceptance bullet 5 (encryption-stack round-trip test, forward-only variant per S-005 plan §5) shipped under the in-tree `@noble/ciphers@0.5.3` resolution. **BLG-0016 (Expo SDK 51 → 54 upgrade) deferred for the third sprint running** — both S-007 install attempts hit `UNABLE_TO_VERIFY_LEAF_SIGNATURE` against `registry.npmjs.org` for the SDK 54 tree; the principled options ruled out (a) `strict-ssl=false` and (b) third-party registry mirror per `AGENTS.md` §3.2.1 + `agent-runtime-security.md`. The third deferral is recorded as an **escalation**: S-008 must be a discovery sprint chaired by `orchestrator` with `agent-safety-officer` + `architect` + `engineering-manager` + `mobile-builder` + `devops-engineer` to resolve the network environment or amend ADR-0012. `make check` is green: 143 backend + 203 mobile = 346 tests across 21+ suites (+6 vs. S-006 close). See `docs/done.md` Sprint S-007 entry for the full per-BLG outcomes.
 >
-> S-007 (`sdk-upgrade-and-on-device-acceptance`) implementation pulls **BLG-0016 first** (so on-device acceptance tests can run on stock Expo Go for the full §2.8 freelancer-mode script + the previously-deferred S-004 UREV addendum), then folds `expo-sharing` + `expo-file-system` from the SDK 54 expected matrix into the `ProfileScreen.tsx` `shareImpl` prop wiring.
+> S-008 (likely **discovery**) opens with: (1) BLG-0016 escalation — what network-environment fix or ADR-0012 amendment lets the SDK 54 install run? (2) does ADR-0012 §1's Strategy 3 (EAS dev client) need to be reconsidered now that "stay on stock Expo Go" has failed three times? (3) any post-MVP UX gaps surfaced by S-006 / S-007 user testing.
 
 ---
 
@@ -105,8 +105,8 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 
 - ID: BLG-0016
   Title: Upgrade Expo SDK 51 → 54 (Expo Go compatibility + compat-matrix alignment)
-  Status: planned
-  Ready: yes (deferred from S-006 to S-007 per `AGENTS.md` §4.10 — npm registry was unreachable when probing the SDK 54 compat matrix; in-tree SDK 51 pin set + ADR-0006 §2 encryption stack stay byte-identical until the upgrade lands; first item pulled in S-007 implementation; anchored to ADR-0012)
+  Status: planned (escalated)
+  Ready: yes — but **deferred for the third sprint running** (S-005 plan said "land in S-006" → deferred at S-006 LOG 18:35 → deferred again at S-007 LOG 21:35). S-007 attempts hit `UNABLE_TO_VERIFY_LEAF_SIGNATURE` against `registry.npmjs.org` for the SDK 54 tree (TLS chain validation failing on the host environment). **Escalation per `AGENTS.md` §4.10**: the third deferral on the same outbound surface triggers an `agent-safety-officer`-led discovery sprint (S-008) to surface options — network-environment fix (different machine / proxy), or ADR-0012 §1 amendment toward Strategy 3 (EAS dev client / TestFlight, accepting the operational shift originally rejected), or split-into-two-upgrade approach (SDK 54 dev-client first, full Expo Go a separate sprint). The in-tree SDK 51 pin set + ADR-0006 §2 encryption stack stay byte-identical until S-008 settles the path forward. **Acceptance bullet 5 (encryption-stack round-trip test, forward-only variant) shipped in S-007** — the test runs under whatever `@noble/ciphers` resolution is loaded, so the day SDK 54 lands it catches a regression in either direction. Anchored to ADR-0012 (with an amendment expected from S-008).
   Owner: mobile-builder (with architect, engineering-manager, agent-safety-officer, security-privacy-officer)
   Type: engineering
   Outcome: A real Greek consumer can run the Watch-Your-Money app on stock Expo Go (iOS or Android, latest store version) end-to-end. `expo-doctor` reports a clean compat matrix (no version-drift warnings). The encryption stack from ADR-0006 (`@noble/ciphers`, `expo-secure-store`, `expo-crypto`) survives byte-identically. The two existing in-tree compat-matrix warnings (`@react-native-community/netinfo`, `typescript`) are explicitly resolved against the SDK 54 matrix.
@@ -129,42 +129,24 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
   Links: [docs/adr/S-005-ADR-0012-Expo-sdk-upgrade.md, docs/adr/S-003-ADR-0007-Expo-runtime-tree.md, docs/adr/S-003-ADR-0006-Offline-cache-strategy.md, docs/sprints/S-004-implementation-login-insights-cache-runnable-scanner/S-004-UREV-0001-Login-insights-cache-runnable-scanner.md, docs/sprints/S-006-implementation-freelancer-mode-and-sdk-upgrade/S-006-LOG-0001-Freelancer-mode-and-sdk-upgrade.md, docs/sprints/S-006-implementation-freelancer-mode-and-sdk-upgrade/S-006-UREV-0001-Freelancer-mode-and-sdk-upgrade.md]
 
 <!-- BLG-0017, BLG-0018, BLG-0019 shipped in S-006 — see `docs/done.md` Sprint S-006 entry. -->
-<!-- BLG-0016 (deferred from S-006) is unchanged above; first item pulled in S-007. -->
+<!-- BLG-0020, BLG-0021 shipped in S-007 — see `docs/done.md` Sprint S-007 entry. -->
+<!-- BLG-0016 (deferred from S-006 + S-007) is unchanged above; **escalated** to S-008 discovery. -->
 
-- ID: BLG-0020
-  Title: Wire `expo-sharing` + `expo-file-system` into the Profile export `shareImpl` (post-BLG-0016)
+- ID: BLG-0022
+  Title: BLG-0016 escalation — discovery sprint to surface SDK upgrade path forward
   Status: planned
-  Ready: no (depends on BLG-0016 having landed the SDK 54 tree)
-  Owner: mobile-builder (with agent-safety-officer, product-designer)
-  Type: engineering
-  Outcome: The Profile-screen `Δημιουργία PDF` CTA hands the streamed PDF to the **native share sheet** on iOS / Android instead of the test-time `shareImpl` prop. Closes the on-device half of `AGENTS.md` §2.8 bullet 9.
+  Ready: no (this is the trigger for the next discovery sprint S-008; will be Ready when S-008 opens)
+  Owner: orchestrator (chair) with agent-safety-officer, architect, engineering-manager, mobile-builder, devops-engineer
+  Type: engineering / agentic
+  Outcome: An ADR (likely ADR-0013 or an ADR-0012 amendment) that resolves the BLG-0016 third-deferral so the upgrade can actually run in S-009 implementation. Output: a path that does not require disabling `strict-ssl`, does not expand the outbound allowlist mid-sprint, and keeps `agent-runtime-security.md` honored byte-identically.
   Acceptance:
-  - The host App component composes the on-device `shareImpl` from `expo-sharing.shareAsync(uri, { mimeType: 'application/pdf' })` and `expo-file-system.writeAsStringAsync(uri, base64, { encoding: 'base64' })` — no business logic moves from `ProfileScreen.tsx`; the prop indirection from S-006 stays.
-  - `expo-sharing@14.0.7` + `expo-file-system@19.0.7` come in via the SDK 54 expected matrix (BLG-0016) — no new outbound host, no new pin discussion.
-  - `mobile/__tests__/screens/profile/ProfileScreen.render.test.tsx` keeps passing the test-time `shareImpl` to the screen; only the host App is touched.
-  - On-device acceptance: the `Δημιουργία PDF` CTA opens the system share sheet on a real Greek consumer's stock Expo Go device with a generated PDF whose filename matches `business-expenses-<from>-<to>.pdf`.
-  - `agent-safety-officer` co-sign on the two SDK 54 deps (already on the npm allowlist; no new host).
-  Design: `docs/sprints/S-005-discovery-freelancer-mode/S-005-DES-0004-Profile-ux.md` §3.4.
-  Approach: One small wiring change in the host App (whichever component composes `ProfileScreen` in the navigation tree). Lands together with the on-device acceptance run of BLG-0016 in S-007 UREV.
-  Size: XS
-  Impact-notes: { external-surface: no (deps already on allowlist via BLG-0016); supply-chain: covered by BLG-0016 supply-chain review }
-  Links: [docs/sprints/S-005-discovery-freelancer-mode/S-005-DES-0004-Profile-ux.md, docs/adr/S-005-ADR-0009-Pdf-export-pipeline.md, docs/adr/S-005-ADR-0012-Expo-sdk-upgrade.md]
-
-- ID: BLG-0021
-  Title: Replace plain `TextInput` date entry on Profile export with `@react-native-community/datetimepicker` (post-BLG-0016)
-  Status: planned
-  Ready: no (depends on BLG-0016 having landed the SDK 54 tree)
-  Owner: mobile-builder (with product-designer, localization-specialist)
-  Type: product
-  Outcome: The two date inputs on the Profile-screen export action use the native iOS / Android date picker instead of a plain `TextInput` that requires `YYYY-MM-DD`. Improves Greek-first UX (the picker localizes to the device locale automatically) and keeps client-side validation in lockstep with ADR-0009 §2 server rules.
-  Acceptance:
-  - `@react-native-community/datetimepicker@8.4.4` (or whatever the SDK 54 expected matrix names) replaces the two `TextInput`s on `ProfileScreen.tsx`.
-  - `mobile/src/screens/profile/state.ts` reducer is **unchanged** at the action / state level — only the way `EXPORT_FROM_CHANGED` and `EXPORT_TO_CHANGED` are emitted changes (`onChange` of the picker instead of `onChangeText` of the input).
-  - The default range stays "first day of current local-month → today" per DES-0004 §3.4.
-  - Reducer tests stay green; render smoke test gets a one-line update for the new component.
-  - `agent-safety-officer` co-sign on the dep (already on the npm allowlist via BLG-0016).
-  Design: `docs/sprints/S-005-discovery-freelancer-mode/S-005-DES-0004-Profile-ux.md` §3.4 + §9.
-  Approach: A small UI swap on `ProfileScreen.tsx`. Lands with BLG-0020 in S-007.
-  Size: XS
-  Impact-notes: { localization: yes (picker localizes via device locale); external-surface: no; supply-chain: covered by BLG-0016 supply-chain review }
-  Links: [docs/sprints/S-005-discovery-freelancer-mode/S-005-DES-0004-Profile-ux.md, docs/adr/S-005-ADR-0012-Expo-sdk-upgrade.md]
+  - Multi-round ADR debate (per `AGENTS.md` §4.4) covering the three options identified in `S-007-REV-0001`: (a) network-environment fix (different machine / network for the install, an `npm` proxy that strips the failing TLS validation in a controlled way, or a one-shot `npm-cache add tarball` flow against pre-validated tarballs from a different host), (b) ADR-0012 §1 amendment toward Strategy 3 (EAS dev client / TestFlight, accepting the operational shift originally rejected), (c) split-into-two-upgrade approach (SDK 54 dev-client first, full Expo Go a separate sprint).
+  - `agent-safety-officer` co-sign on the chosen path (the supply-chain implications of every option must be reviewed against `agent-runtime-security.md`).
+  - `architect` + `engineering-manager` co-sign on the technical approach.
+  - The output ADR makes BLG-0016 "Ready and executable in S-009 implementation" — no fourth deferral on the same outbound surface.
+  - The discovery sprint either also folds in BLG-0014 (chart-kit re-eval — depends on the same SDK upgrade landing) or explicitly defers it to a later sprint with reasoning recorded.
+  Design: N/A.
+  Approach: Discovery sprint chaired by `orchestrator`. Output is an ADR, not code.
+  Size: M (multi-round debate + supply-chain review of every chosen path)
+  Impact-notes: { external-surface: depends on chosen path; supply-chain: yes — the chosen path will define how the SDK 54 transitive re-pin is reviewed }
+  Links: [docs/adr/S-005-ADR-0012-Expo-sdk-upgrade.md, docs/sprints/S-007-implementation-sdk-upgrade-and-on-device-acceptance/S-007-LOG-0001-Sdk-upgrade-and-on-device-acceptance.md, docs/sprints/S-007-implementation-sdk-upgrade-and-on-device-acceptance/S-007-REV-0001-Sdk-upgrade-and-on-device-acceptance.md, .agents/rules/agent-runtime-security.md]
