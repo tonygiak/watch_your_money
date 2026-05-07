@@ -110,3 +110,109 @@ async function tryParseProblem(
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// POST /receipts/{id}/tag — tag-as-business (ADR-0008 / BLG-0018)
+// ---------------------------------------------------------------------------
+
+export type TagResultOk = {
+  kind: "ok";
+  receipt: TaggedReceipt;
+};
+
+export type TagResultError = {
+  kind: "error";
+  status: 401 | 404 | 422 | "network" | "timeout" | "generic";
+  field?: "category" | "notes";
+  trace_id?: string;
+};
+
+export type TagResult = TagResultOk | TagResultError;
+
+/** Slim post-tag receipt shape — what the mobile UI actually needs after a
+ *  tag operation. Mirrors the `ReceiptResponse` body but only carries the
+ *  fields the inline-tag flow consumes. The full shape is available too — we
+ *  pass it through unchanged so the receipt-detail screen can refresh. */
+export type TaggedReceipt = {
+  id: string;
+  is_business_expense: boolean;
+  business_category: string | null;
+  notes: string | null;
+};
+
+const TAG_TIMEOUT_MS = 10_000;
+
+export async function tagReceipt(args: {
+  receiptId: string;
+  isBusiness: boolean;
+  category?: string;
+  notes?: string;
+  bearerToken: string;
+  backendUrl: string;
+  signal?: AbortSignal;
+}): Promise<TagResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TAG_TIMEOUT_MS);
+  if (args.signal) {
+    if (args.signal.aborted) controller.abort();
+    args.signal.addEventListener("abort", () => controller.abort(), {
+      once: true,
+    });
+  }
+
+  // Body shape exactly per ADR-0008 §2 — only the fields the server expects.
+  const body: Record<string, unknown> = { is_business: args.isBusiness };
+  if (args.isBusiness) {
+    if (args.category !== undefined) body.category = args.category;
+    if (args.notes !== undefined && args.notes.length > 0) {
+      body.notes = args.notes;
+    }
+  }
+
+  try {
+    const response = await fetch(
+      `${args.backendUrl}/receipts/${args.receiptId}/tag`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${args.bearerToken}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      }
+    );
+
+    if (response.status === 200) {
+      const json = await response.json();
+      return {
+        kind: "ok",
+        receipt: {
+          id: String(json.id),
+          is_business_expense: Boolean(json.is_business_expense),
+          business_category: json.business_category ?? null,
+          notes: json.notes ?? null,
+        },
+      };
+    }
+
+    const errorBody = await tryParseProblem(response);
+    if (response.status === 401) {
+      return { kind: "error", status: 401, trace_id: errorBody?.trace_id };
+    }
+    if (response.status === 404) {
+      return { kind: "error", status: 404, trace_id: errorBody?.trace_id };
+    }
+    if (response.status === 422) {
+      return { kind: "error", status: 422, trace_id: errorBody?.trace_id };
+    }
+    return { kind: "error", status: "generic", trace_id: errorBody?.trace_id };
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      return { kind: "error", status: "timeout" };
+    }
+    return { kind: "error", status: "network" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

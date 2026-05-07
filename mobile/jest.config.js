@@ -25,6 +25,8 @@ module.exports = {
         "<rootDir>/__tests__/screens/scanner/state.test.ts",
         "<rootDir>/__tests__/screens/login/state.test.ts",
         "<rootDir>/__tests__/screens/insights/state.test.ts",
+        "<rootDir>/__tests__/screens/receipt/tag.state.test.ts",
+        "<rootDir>/__tests__/screens/profile/state.test.ts",
       ],
       moduleFileExtensions: ["ts", "js"],
     },

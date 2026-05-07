@@ -127,6 +127,72 @@ export const STRINGS: Record<Locale, StringTable> = {
     "offline.tooltip.tag_disabled": "Διαθέσιμο όταν είστε online",
     "offline.scanner.disabled": "Σαρώστε όταν είστε online",
     "offline.insights.body": "Διαθέσιμο όταν είστε online.",
+
+    // ----- Receipt detail (BLG-0018) -----------------------------------------
+    "receipt.items": "Είδη",
+    "receipt.no_items": "Δεν υπάρχουν είδη.",
+    "receipt.totals": "Σύνολα",
+    "receipt.subtotal": "Καθαρή αξία",
+    "receipt.discount": "Έκπτωση",
+    "receipt.vat": "ΦΠΑ",
+    "receipt.total": "Σύνολο",
+    "receipt.payment_method": "Τρόπος πληρωμής",
+
+    // ----- Tag-as-business (DES-0005 §4) -------------------------------------
+    "tag.toggle_label": "Επαγγελματικό έξοδο",
+    "tag.summary.connector": "·",
+    "tag.summary.edit_hint": "Διπλό άγγιγμα για επεξεργασία",
+    "tag.category.label": "Κατηγορία",
+    "tag.category.placeholder": "π.χ. groceries, fuel, transport",
+    "tag.category.hint": "Έως 64 χαρακτήρες",
+    "tag.category.required": "Η κατηγορία είναι υποχρεωτική.",
+    "tag.category.too_long": "Η κατηγορία έχει όριο 64 χαρακτήρες.",
+    "tag.notes.label": "Σημειώσεις (προαιρετικό)",
+    "tag.notes.placeholder": "π.χ. συνάντηση με πελάτη Χ",
+    "tag.notes.hint": "Προαιρετικό. Έως 500 χαρακτήρες.",
+    "tag.notes.too_long": "Οι σημειώσεις έχουν όριο 500 χαρακτήρες.",
+    "tag.save": "Αποθήκευση",
+    "tag.cancel": "Ακύρωση",
+    "tag.toast.tagged": "Σημαδεύτηκε ως επαγγελματικό έξοδο.",
+    "tag.toast.untagged": "Αφαιρέθηκε από τα επαγγελματικά.",
+    "tag.toast.error.network": "Δεν υπάρχει σύνδεση. Δοκιμάστε ξανά.",
+    "tag.toast.error.generic": "Αποτυχία αποθήκευσης. Δοκιμάστε ξανά.",
+
+    // ----- Profile (DES-0004 §5) ---------------------------------------------
+    "profile.title": "Λογαριασμός",
+    "profile.section.account": "Λογαριασμός",
+    "profile.account.phone_label": "Τηλέφωνο",
+    "profile.account.last_signin": "Σύνδεση: {datetime}",
+    "profile.section.freelancer": "Ελεύθερος επαγγελματίας",
+    "profile.freelancer.toggle_label": "Είμαι ελεύθερος επαγγελματίας",
+    "profile.freelancer.help":
+      "Ενεργοποιήστε για να σημαδεύετε αποδείξεις ως επαγγελματικά έξοδα και να εξάγετε PDF.",
+    "profile.section.afm": "ΑΦΜ",
+    "profile.afm.placeholder": "π.χ. 123456789",
+    "profile.afm.save": "Αποθήκευση",
+    "profile.afm.invalid": "Ο ΑΦΜ δεν είναι έγκυρος.",
+    "profile.afm.required_for_freelancer":
+      "Ο ΑΦΜ απαιτείται όταν είστε ελεύθερος επαγγελματίας.",
+    "profile.afm.saved": "Αποθηκεύτηκε.",
+    "profile.afm.network_error": "Δεν υπάρχει σύνδεση. Δοκιμάστε ξανά.",
+    "profile.section.export": "Επαγγελματικά έξοδα",
+    "profile.export.title": "Εξαγωγή PDF",
+    "profile.export.help":
+      "Επιλέξτε περίοδο και δημιουργήστε PDF για τον λογιστή σας.",
+    "profile.export.from_label": "Από",
+    "profile.export.to_label": "Έως",
+    "profile.export.cta": "Δημιουργία PDF",
+    "profile.export.empty_period":
+      "Δεν υπάρχουν επαγγελματικά έξοδα στην επιλεγμένη περίοδο.",
+    "profile.export.range_invalid":
+      "Η ημερομηνία λήξης δεν μπορεί να είναι πριν την ημερομηνία έναρξης.",
+    "profile.export.range_too_long":
+      "Η περίοδος δεν μπορεί να υπερβαίνει τους 12 μήνες.",
+    "profile.export.disabled_no_freelancer":
+      "Διαθέσιμο μόνο σε λειτουργία ελεύθερου επαγγελματία.",
+    "profile.export.failed.network":
+      "Δεν υπάρχει σύνδεση. Δοκιμάστε ξανά.",
+    "profile.signout.cta": "Αποσύνδεση",
   },
   en: {
     "app.name": "Smart Receipts",
@@ -235,5 +301,70 @@ export const STRINGS: Record<Locale, StringTable> = {
     "offline.tooltip.tag_disabled": "Available when online",
     "offline.scanner.disabled": "Scan when online",
     "offline.insights.body": "Available when online.",
+
+    // ----- Receipt detail (BLG-0018) -----------------------------------------
+    "receipt.items": "Items",
+    "receipt.no_items": "No items.",
+    "receipt.totals": "Totals",
+    "receipt.subtotal": "Net",
+    "receipt.discount": "Discount",
+    "receipt.vat": "VAT",
+    "receipt.total": "Total",
+    "receipt.payment_method": "Payment method",
+
+    // ----- Tag-as-business (DES-0005 §4) -------------------------------------
+    "tag.toggle_label": "Business expense",
+    "tag.summary.connector": "·",
+    "tag.summary.edit_hint": "Double-tap to edit",
+    "tag.category.label": "Category",
+    "tag.category.placeholder": "e.g. groceries, fuel, transport",
+    "tag.category.hint": "Up to 64 characters",
+    "tag.category.required": "Category is required.",
+    "tag.category.too_long": "Category is limited to 64 characters.",
+    "tag.notes.label": "Notes (optional)",
+    "tag.notes.placeholder": "e.g. meeting with client X",
+    "tag.notes.hint": "Optional. Up to 500 characters.",
+    "tag.notes.too_long": "Notes are limited to 500 characters.",
+    "tag.save": "Save",
+    "tag.cancel": "Cancel",
+    "tag.toast.tagged": "Tagged as business expense.",
+    "tag.toast.untagged": "Removed from business expenses.",
+    "tag.toast.error.network": "No connection. Try again.",
+    "tag.toast.error.generic": "Save failed. Try again.",
+
+    // ----- Profile (DES-0004 §5) ---------------------------------------------
+    "profile.title": "Profile",
+    "profile.section.account": "Account",
+    "profile.account.phone_label": "Phone",
+    "profile.account.last_signin": "Signed in: {datetime}",
+    "profile.section.freelancer": "Freelancer",
+    "profile.freelancer.toggle_label": "I am a freelancer",
+    "profile.freelancer.help":
+      "Enable to tag receipts as business expenses and export PDF.",
+    "profile.section.afm": "ΑΦΜ",
+    "profile.afm.placeholder": "e.g. 123456789",
+    "profile.afm.save": "Save",
+    "profile.afm.invalid": "This ΑΦΜ is not valid.",
+    "profile.afm.required_for_freelancer":
+      "ΑΦΜ is required when freelancer mode is on.",
+    "profile.afm.saved": "Saved.",
+    "profile.afm.network_error": "No connection. Try again.",
+    "profile.section.export": "Business expenses",
+    "profile.export.title": "Export PDF",
+    "profile.export.help":
+      "Choose a period and generate a PDF for your accountant.",
+    "profile.export.from_label": "From",
+    "profile.export.to_label": "To",
+    "profile.export.cta": "Generate PDF",
+    "profile.export.empty_period":
+      "No business expenses in the selected period.",
+    "profile.export.range_invalid":
+      "End date cannot be before start date.",
+    "profile.export.range_too_long":
+      "Period cannot exceed 12 months.",
+    "profile.export.disabled_no_freelancer":
+      "Available only in freelancer mode.",
+    "profile.export.failed.network": "No connection. Try again.",
+    "profile.signout.cta": "Sign out",
   },
 };
