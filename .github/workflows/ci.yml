@@ -56,7 +56,7 @@ jobs:
 
       - name: Install mobile deps
         working-directory: mobile
-        run: npm ci --no-audit --no-fund
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
 
       - name: Lint backend (ruff)
         working-directory: backend
