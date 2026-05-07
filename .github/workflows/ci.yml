@@ -2,7 +2,7 @@
 #
 # Owned by `devops-engineer` (BLG-0008 / `AGENTS.md` §4.7).
 # - Pinned: Python 3.11, Node 20, Ubuntu latest.
-# - Caches pip on `requirements-dev.txt` and npm on `mobile/package-lock.json`.
+# - Caches pip on `requirements-dev.txt`; npm install runs without a lock file (SDK 51 tree).
 # - PYTHONUTF8=1 + PIP_PROGRESS_BAR=off (S-000 bootstrap learning) carried
 #   into the env so non-ASCII paths and noisy progress bars never break logs.
 # - No new external surface beyond what the outbound allowlist already covers
@@ -45,8 +45,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-          cache-dependency-path: mobile/package-lock.json
 
       - name: Install backend deps
         run: |
@@ -56,7 +54,7 @@ jobs:
 
       - name: Install mobile deps
         working-directory: mobile
-        run: npm ci --legacy-peer-deps --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: Lint backend (ruff)
         working-directory: backend
