@@ -4,69 +4,67 @@ The current direction of the project and the focus of the next sprint.
 
 ## Where we are right now
 
-Sprint **S-007 (implementation, `sdk-upgrade-and-on-device-acceptance`)** has just closed. Two of the three Ready items shipped at the contract level, plus the BLG-0016 acceptance bullet 5 partial:
+Sprint **S-008 (discovery, `sdk-upgrade-path-forward`)** has just closed. Single output: **ADR-0013 accepted**, resolving the three-sprint `UNABLE_TO_VERIFY_LEAF_SIGNATURE` blocker on BLG-0016.
 
-- **BLG-0020 — Wire `expo-sharing` + `expo-file-system` into the Profile export `shareImpl`.** `mobile/src/lib/share.ts` ships `defaultShareImpl({ base64, filename })` — lazy-requires `expo-file-system` + `expo-sharing` at call time, writes the base64 PDF bytes to the sandboxed cache directory, then opens the native share sheet via `shareAsync(uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf", dialogTitle: filename })`. `ProfileScreen.tsx` falls back to `defaultShareImpl` when the `shareImpl` prop is omitted; tests still inject a fake. Privacy contract from ADR-0009 §3 honored byte-identically — no logging of bytes / filename / target. The two SDK 54 transitive deps (`expo-sharing`, `expo-file-system`) arrive when BLG-0016 lands; until then the lazy require gracefully degrades.
-- **BLG-0021 — Replace plain `TextInput` date entry with `@react-native-community/datetimepicker`.** `mobile/src/screens/profile/DateField.tsx` wraps the picker behind a `loadPicker()` try / catch — under SDK 54 the require resolves and the native picker opens; under SDK 51 (today's tree) the require returns null and the component renders just a trigger button. The reducer is **unchanged** at the action / state level. `mobile/jest.config.js` `transformIgnorePatterns` now includes `@react-native-community/datetimepicker` for the SDK 54 tree.
-- **BLG-0016 partial — Encryption-stack round-trip test** (acceptance bullet 5, forward-only variant per S-005 plan §5). `mobile/__tests__/cache/encryption.roundtrip.test.ts` — six-case test of the AES-256-GCM round-trip via `@noble/ciphers/aes` `gcm()` directly. Includes Greek UTF-8 round-trip, deterministic key + IV round-trip, GCM tag mismatch + tampered-ciphertext rejection, and a `randomBytes()` length sanity check. The test runs under whatever `@noble/ciphers` resolution is loaded; today that's SDK 51's `0.5.3`, tomorrow that's SDK 54's resolution — the test catches a regression in either direction.
+**Root cause diagnosed:** The `npm ERR! code UNABLE_TO_VERIFY_LEAF_SIGNATURE` error that blocked BLG-0016 in S-005, S-006, and S-007 is a **Node.js CA bundle staleness issue**. Node.js ships its own Mozilla CA store at its release date. If `registry.npmjs.org` adopted a root or intermediate CA after the installed Node.js version was released, TLS validation fails. The fix is to update Node.js to the current LTS release (v22.x, which ships an updated CA store) or to export the Windows system CA trust store via `NODE_EXTRA_CA_CERTS`. Both approaches keep `strict-ssl` fully enabled and require no new outbound host.
 
-The third Ready item (the full SDK upgrade itself) was **deferred for the third sprint running**:
+**Decision (ADR-0013):** Option A — host CA environment fix — is the sole path forward for S-009. A pre-flight checklist (ADR-0013 §3) gives `mobile-builder` an unambiguous, auditable sequence before any `npx expo install --fix` attempt. ADR-0012 §1 (EAS dev client rejection) remains in force unless S-009 exhausts the pre-flight checklist.
 
-- **BLG-0016 — Expo SDK 51 → 54 upgrade — deferred again per `AGENTS.md` §4.10.** Two install attempts in S-007 hit `UNABLE_TO_VERIFY_LEAF_SIGNATURE` against `registry.npmjs.org` for the SDK 54 tree (TLS chain validation failing on the host environment for the newer / re-signed tarballs). The principled options ruled out: (a) `strict-ssl=false` (would weaken supply-chain TLS posture in violation of `agent-runtime-security.md`); (b) third-party registry mirror (would expand outbound allowlist mid-sprint, requires an ADR per `AGENTS.md` §3.2.1 + §4.11). The deferral keeps the in-tree SDK 51 pin set and the encryption stack from ADR-0006 §2 byte-identical. **The third deferral is recorded as an escalation** — S-008 must be a chaired discovery sprint that resolves the network environment or amends ADR-0012. BLG-0016 stays Ready in `docs/backlog.md` with the escalation note. The on-device verification of the §2.8 freelancer-mode acceptance script (`S-006-UREV-0001` §A) remains gated until BLG-0016 lands.
+`make check` is **green at S-008 close: 143 backend + 203 mobile = 346 tests across 21+ suites** (unchanged from S-007 — no production code changes in a discovery sprint).
 
-`make check` is **green at S-007 close: 143 backend + 203 mobile = 346 tests across 21+ suites** (+6 vs. S-006 close baseline of 340 tests across 21 suites). Backend: `ruff check` + `mypy app tests` (52 source files clean) + `pytest` (143 passed). Mobile: `tsc --noEmit` clean + `jest` (203 passed across 19 suites — 14 pure-TS + 5 jest-expo render). No flaky tests, no skipped tests beyond the baseline.
-
-One new backlog item was opened at S-007 close, queued for S-008:
-
-- **BLG-0022** — BLG-0016 escalation — discovery sprint chaired by `orchestrator` with `agent-safety-officer` + `architect` + `engineering-manager` + `mobile-builder` + `devops-engineer` to surface options (network-environment fix, ADR-0012 §1 amendment toward Strategy 3 EAS dev client, or split-into-two-upgrade approach).
-
-Five backlog items still planned across BLG-0004 / BLG-0009 / BLG-0011 / BLG-0014 / BLG-0015 (real-receipt fixtures, drift-detection CI, Profile language switch, chart-kit re-eval, live insights-RPC integration test); none was activated in S-007.
-
-For the latest user-facing snapshot, read `AGENTS.md` §2.6 (shipped features now include the BLG-0020 share-sheet wiring + BLG-0021 native date-picker scaffold + the encryption round-trip test — all gated for full on-device by BLG-0016) and §2.7 (sprint snapshot now reflects S-007 closing).
+For the latest user-facing snapshot, read `AGENTS.md` §2.6 (feature catalog unchanged from S-007) and §2.7 (sprint snapshot now reflects S-008 closing).
 
 ## Next sprint
 
-- **Type**: `discovery` (per the BLG-0016 escalation — third deferral on the same outbound surface).
-- **Theme proposal**: `sdk-upgrade-path-forward`.
-- **Number**: **S-008**.
-- **Why discovery, not implementation**: BLG-0016 has been deferred three sprints in a row on the same external-host failure mode. Per `AGENTS.md` §4.10, the third occurrence escalates to `agent-safety-officer` who must lead the next decision. Per `AGENTS.md` §4.4, no in-sprint workaround is acceptable — the path forward is decided through a multi-round chaired ADR debate, not improvised in implementation.
+- **Type**: `implementation`
+- **Theme proposal**: `sdk-upgrade-and-on-device-acceptance-v2`
+- **Number**: **S-009**
+- **Why implementation**: BLG-0016 is Ready and executable per ADR-0013 §3 pre-flight checklist. The Ready queue has one clearly unblocked item; per `AGENTS.md` §4.1.2, the next sprint is implementation.
 
-### Goals for the discovery sprint S-008
+### Goals for the implementation sprint S-009
 
-1. **BLG-0022 — chair a multi-round ADR debate** covering the three options identified in `S-007-REV-0001`:
-   - **(a) Network-environment fix.** Move the install to a different machine / network where the SDK 54 tarballs validate cleanly. An `npm` proxy that strips the failing TLS validation in a controlled way (e.g. Verdaccio with our own validated tarball mirror). A one-shot `npm-cache add tarball` flow against pre-validated tarballs from a different host. None of these expand the outbound allowlist at runtime — only at build / install time.
-   - **(b) ADR-0012 §1 amendment toward Strategy 3 (EAS dev client / TestFlight).** ADR-0012 originally rejected this as an "MVP-incompatible operational shift". Three deferrals is enough signal to revisit. The trade-off changes when "stay on stock Expo Go" stops being achievable. EAS dev client doesn't require Expo Go on the user's device at all — it ships a custom app via TestFlight / Play internal testing. Operational footprint: meaningful build / signing / distribution work; net positive: removes the Expo Go SDK-version dependency entirely.
-   - **(c) Split-into-two-upgrade approach.** SDK 54 dev-client first (smaller blast radius — only `agent-safety-officer` + `engineering-manager` review the dev-client tree), full Expo Go a separate sprint. Lets the supply-chain audit happen on a smaller surface first.
-2. **Output**: an ADR (`ADR-0013` likely, or an `ADR-0012` amendment per `AGENTS.md` §4.4 supersession rules) that makes BLG-0016 **executable** in S-009 implementation — no fourth deferral on the same outbound surface.
-3. **Folded-in question**: does BLG-0014 (`react-native-chart-kit` re-eval) ride along with the chosen path, or stay passive until the upgrade actually lands? Decision recorded in the same ADR.
-4. **Not in scope for S-008**: BLG-0004 (real-receipt fixtures), BLG-0009 (drift-detection CI), BLG-0011 (language switch), BLG-0015 (live insights-RPC integration test). Those stay planned and wait for S-008's chosen path to settle the supply-chain footprint of the S-009 upgrade.
-5. **Update `AGENTS.md` §2.7** at S-008 close with the chosen path and the new sprint queue.
+1. **Run the ADR-0013 §3 pre-flight checklist** as the very first action:
+   - Verify / update Node.js to v22 LTS (updates the bundled Mozilla CA store).
+   - Smoke test: `npm pack expo@^54.0.0 --dry-run` in a temp dir.
+   - If still failing: export Windows CA bundle via PowerShell → set `NODE_EXTRA_CA_CERTS` → retry.
+   - If smoke test passes → proceed to the full SDK 54 upgrade.
+   - If checklist exhausted without success → open BLG-0023 + S-010 for Option B (EAS dev client).
+2. **BLG-0016 — Expo SDK 51 → 54 upgrade** (if pre-flight passes):
+   - `npx expo install --fix` in `mobile/`.
+   - `expo-doctor` until zero warnings.
+   - Regenerate `mobile/package-lock.json`.
+   - Verify all BLG-0016 acceptance bullets (encryption-stack round-trip test already shipped in S-007).
+   - `make check` green under the new jest-expo@54 preset.
+3. **BLG-0020 + BLG-0021 on-device verification** (contingent on BLG-0016 landing):
+   - The share-sheet hand-off (`defaultShareImpl` → `expo-sharing` + `expo-file-system`) is already wired; the on-device test verifies it under SDK 54 on real Expo Go.
+   - The native date-picker (`DateField.tsx` → `@react-native-community/datetimepicker`) is already wired; the on-device test verifies it opens under SDK 54.
+4. **S-009-UREV-0001** — end-to-end acceptance script on stock Expo Go (iOS or Android, latest store version):
+   - S-004 script: sign in → scan → Insights → offline → restore.
+   - S-006 freelancer-mode script: sign in → scan → tag as business → Insights → Profile → ΑΦΜ → export PDF → native share sheet.
 
-### Acceptance test at S-008 review (discovery)
+### Acceptance at S-009 review
 
-By the end of S-008:
-
-- `docs/adr/S-008-ADR-0013-*.md` (or an `ADR-0012` amendment) records: chair, participants, multi-round positions, recorded dissent, final decision, and the supply-chain implications signed off by `agent-safety-officer`.
-- BLG-0016 in `docs/backlog.md` is updated from "Ready, deferred + escalated" to "Ready, executable per ADR-0013" (or per the amendment).
-- `S-008-REV-0001` records the §4.11 sign-offs: `agent-safety-officer` (the supply-chain footprint of the chosen path), `architect` (the technical decision), `engineering-manager` (the engineering-quality bar of the chosen path), `mobile-builder` (the executor's read on feasibility), `devops-engineer` (the deploy / build implications), `orchestrator` (chair).
-- `make check` green (no production-code change in a discovery sprint; the only change is documentation + ADR + backlog updates).
+- Pre-flight checklist ran per ADR-0013 §3 and outcome logged.
+- `expo-doctor` reports zero compat warnings.
+- `make check` green (346+ tests, now under `jest-expo@~54`).
+- Real device acceptance script executed on stock Expo Go.
+- `AGENTS.md` §2.6 + §2.7 updated at sprint close.
 
 ### Cadence after that
 
-- **S-009 — implementation** — pulls BLG-0016 first under the path settled by S-008; folds in BLG-0020 + BLG-0021 on-device verification (both shipped at the contract level in S-007 — the on-device half completes when the SDK 54 tree actually runs). Then runs `S-009-UREV-0001` end-to-end on whatever runtime the S-008 ADR settled on (stock Expo Go if Strategy A wins, EAS dev client if Strategy B wins, or split if Strategy C wins).
-- **S-010 — discovery (likely)** — opens the door to one of: country expansion (RO / IT / PT / ES adapters per `AGENTS.md` §5.9), real-receipt fixtures (BLG-0004 + BLG-0009 if consenting users surface), or post-MVP UX gaps from S-009 user testing.
+- **S-010** — depends on S-009 outcome:
+  - If BLG-0016 lands: likely **discovery** — opens the door to country expansion (RO/IT/PT/ES adapters per §5.9), real-receipt fixtures (BLG-0004 + BLG-0009), or post-MVP UX gaps.
+  - If pre-flight checklist is exhausted: **discovery** for BLG-0023 (EAS dev client path — `agent-safety-officer` supply-chain review of EAS CLI + code-signing surface required).
 
-## Open questions queued for S-008 discovery
+## Open questions for S-009
 
-- **Network-environment options.** Is a different machine / network an option for the install? Is Verdaccio (or similar) acceptable as a pre-validated tarball mirror, or does that count as a new outbound host requiring an allowlist update?
-- **EAS dev client supply-chain footprint.** ADR-0012 §1 rejected this as MVP-incompatible. Is the rejection still right after three deferrals?
-- **Split-upgrade timing.** If S-008 chooses (c), how do we sequence the dev-client upgrade vs. the Expo Go upgrade?
+- **Node.js version resolved at S-008 close**: `node --version` → **v22.22.0** — already on LTS. ADR-0013 §3 Step 2 (Node.js update) is skipped; S-009 starts at Step 3 (TLS smoke test) and will execute Step 3a (Windows CA bundle export via `NODE_EXTRA_CA_CERTS`) before `npx expo install --fix`.
+- Whether `react-native-chart-kit@6.12.0` survives `expo install --fix` for SDK 54 (BLG-0014 — passive unless the install proves otherwise).
 
 ## Notes for whoever picks this up
 
-- **The S-005 ADRs + DES are still the contracts.** ADR-0008 (Tag-as-business UX), ADR-0009 (PDF export pipeline), ADR-0010 (inferred-category posture — deferred), ADR-0011 (`tzdata` codification), ADR-0012 (SDK upgrade — escalated to S-008) + DES-0004 (Profile screen) + DES-0005 (Tag-as-business inline flow) all locked. S-006 + S-007 implemented against them; S-008 amends only ADR-0012 §1.
-- **Contract-level acceptance for BLG-0020 + BLG-0021 is complete.** S-008 (discovery) doesn't touch the wiring; S-009 (implementation) re-tests them on-device once the SDK 54 tree lands.
-- **The encryption-stack round-trip test ships under SDK 51** but the test contract is SDK-version-agnostic — it runs under whatever `@noble/ciphers` resolution is loaded. When SDK 54 lands, the test moves with it byte-identically. If the round-trip ever fails, BLG-0016 is **blocked** pending an ADR-0006 amendment per ADR-0012 §5 + agent-safety-officer condition 5.
-- **The PDF must never be persisted server-side.** ADR-0009 §3 stays hard. The S-006 implementation honors this and S-007's BLG-0020 wiring keeps it that way (the share sheet hands the bytes to the user's chosen target — that's the user's choice, not ours).
-- **`category` is lowercased server-side, not client-side.** Mobile preserves user input as typed; the server normalizes. This is what makes the by-category Insights rollup collapse `"Groceries"` and `"groceries"` correctly.
-- **PowerShell `make check` quirk persists**: bare `make check` may misresolve the target on PowerShell sessions where the workspace path contains the Greek folder name `Υπολογιστής`. Workaround in `S-006-UREV-0001` / `S-007-UREV-0001` §1: run `ruff check`, `mypy`, `pytest`, `tsc`, `jest` directly with the venv / npm binaries the Makefile would otherwise invoke. Logged in every sprint LOG since S-003.
+- **ADR-0013 is the new execution contract for BLG-0016.** Read `docs/adr/S-008-ADR-0013-Sdk-upgrade-env-fix.md` before touching `mobile/package.json`.
+- **The S-005 ADRs + DES are still the contracts.** ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, DES-0004, DES-0005 all locked. S-009 implements against them; ADR-0013 adds only the pre-flight checklist.
+- **Contract-level acceptance for BLG-0020 + BLG-0021 is complete.** S-009 runs the on-device half once the SDK 54 tree lands.
+- **The encryption-stack round-trip test ships under SDK 51** but the test contract is SDK-version-agnostic. When SDK 54 lands, the test moves with it byte-identically.
+- **PowerShell `make check` quirk persists**: bare `make check` may misresolve on PowerShell sessions where the workspace path contains the Greek folder name `Υπολογιστής`. Workaround: run `ruff check`, `mypy`, `pytest`, `tsc`, `jest` directly. Logged since S-003.

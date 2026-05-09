@@ -4,6 +4,26 @@ Append-only ledger of everything **completed**, grouped by sprint, newest on top
 
 ---
 
+## Sprint S-008 — SDK upgrade path forward (closed 2026-05-08)
+
+> Discovery sprint. Single output: **ADR-0013 accepted**, resolving BLG-0022 and unblocking BLG-0016 for S-009. The three-sprint `UNABLE_TO_VERIFY_LEAF_SIGNATURE` blocker was diagnosed as a Node.js CA bundle staleness issue. The chosen path (Option A) is to update Node.js to v22 LTS (which ships an updated Mozilla CA store) and/or export the Windows system CA trust store via `NODE_EXTRA_CA_CERTS` before the S-009 install attempt. Both paths keep `strict-ssl` fully enabled, require no new outbound host, and preserve `agent-runtime-security.md` byte-identically. ADR-0012 §1 (EAS dev client rejection) remains in force unless S-009 exhausts the pre-flight checklist. `make check` unchanged from S-007: 346 tests across 21+ suites. No production code changes.
+
+- **BLG-0022 — BLG-0016 escalation — discovery sprint to surface SDK upgrade path forward.** Multi-round ADR debate chaired by `orchestrator`. Three options debated: (A) fix the host TLS/CA environment (Node.js LTS update / Windows CA export via `NODE_EXTRA_CA_CERTS`), (B) amend ADR-0012 §1 toward Strategy 3 (EAS dev client / TestFlight), (C) split-into-two-upgrade approach. All five participants — `agent-safety-officer`, `architect`, `engineering-manager`, `mobile-builder`, `devops-engineer` — independently converged on **Option A** in Round 1; no dissent through Round 3. Decision recorded in `docs/adr/S-008-ADR-0013-Sdk-upgrade-env-fix.md` (Status: accepted). Key finding: `UNABLE_TO_VERIFY_LEAF_SIGNATURE` is caused by Node.js's built-in CA bundle predating the root/intermediate CA currently anchoring `registry.npmjs.org`'s TLS cert chain — a host-environment issue, not an architecture issue. S-009 pre-flight checklist (ADR-0013 §3) gives `mobile-builder` an auditable, exhaustion-critera-clear sequence before any `npx expo install --fix` attempt. **BLG-0016 updated to "Ready, executable per ADR-0013 §3."** Sign-offs: `agent-safety-officer` (supply-chain footprint of Option A — Node.js LTS update is standard maintenance, no new npm/pip packages, `nodejs.org` is install-time tooling not a runtime host), `architect` (technical decision — Option A addresses root cause; ADR-0012 §1 preserved), `engineering-manager` (pre-flight checklist as execution contract), `mobile-builder` (executor feasibility), `devops-engineer` (CI unaffected — `actions/setup-node` already uses LTS; TLS failure was local-machine only).
+
+`make check` at sprint close: backend (ruff, mypy, pytest 143) + mobile (tsc, jest 203 across 19 suites) — **green**, 346 tests across 21+ suites (identical to S-007 close). No production code changes in this discovery sprint.
+
+Sign-offs (sprint review per §4.11):
+
+- `agent-safety-officer` + `architect` — no new MCP integration / no new outbound host (`nodejs.org` is install-time tooling, not added to the runtime allowlist).
+- `agent-safety-officer` — supply-chain co-sign for ADR-0013 (Node.js LTS update carries no npm/pip additions; Windows CA bundle export is OS-managed and fully reversible).
+- `architect` — technical decision co-sign for ADR-0013.
+- `engineering-manager` — engineering-quality bar co-sign for ADR-0013 pre-flight checklist.
+- `mobile-builder` — executor feasibility co-sign for ADR-0013.
+- `devops-engineer` — build/distribution implications co-sign for ADR-0013.
+- `orchestrator` — chair; rounds closed per `AGENTS.md` §4.4; sign-offs recorded in `S-008-REV-0001`; `AGENTS.md` §2.7 + `docs/plan.md` updated; backlog reflects BLG-0016 unblocked, BLG-0022 moved here.
+
+---
+
 ## Sprint S-007 — SDK upgrade and on-device acceptance (closed 2026-05-07)
 
 > Implementation sprint. Two of three Ready items shipped at the contract level (BLG-0020 share-sheet wiring, BLG-0021 native date-picker swap) plus the BLG-0016 acceptance bullet 5 partial (encryption-stack round-trip test under the in-tree SDK 51 tree — forward-only variant per S-005 plan §5). **BLG-0016 (Expo SDK 51 → 54 upgrade) deferred for the third sprint running** per `AGENTS.md` §4.10 — two install attempts hit `UNABLE_TO_VERIFY_LEAF_SIGNATURE` against `registry.npmjs.org` for the SDK 54 tree (TLS chain validation failing on the host environment). The principled options ruled out: (a) `strict-ssl=false` (would weaken supply-chain TLS posture in violation of `agent-runtime-security.md`); (b) third-party registry mirror (would expand outbound allowlist mid-sprint, requires an ADR per `AGENTS.md` §3.2.1 + §4.11). The third deferral is recorded as an **escalation** — S-008 must be a discovery sprint chaired by `orchestrator` with `agent-safety-officer` + `architect` + `engineering-manager` + `mobile-builder` + `devops-engineer` to surface options (network-environment fix, ADR-0012 amendment toward Strategy 3 EAS dev client, or split-into-two-upgrade approach). BLG-0016 stays Ready in `docs/backlog.md` with the escalation note.
