@@ -2,9 +2,7 @@
 
 Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `docs/templates/backlog-item.md`. When an item completes, **move** (don't duplicate) it into `docs/done.md`.
 
-> S-007 (`sdk-upgrade-and-on-device-acceptance`) closed: BLG-0020, BLG-0021 shipped at the contract level (lazy-require + graceful fallback so the wiring degrades cleanly under SDK 51 and turns on the moment the SDK 54 tree lands). BLG-0016 acceptance bullet 5 (encryption-stack round-trip test, forward-only variant per S-005 plan §5) shipped under the in-tree `@noble/ciphers@0.5.3` resolution. **BLG-0016 (Expo SDK 51 → 54 upgrade) deferred for the third sprint running** — both S-007 install attempts hit `UNABLE_TO_VERIFY_LEAF_SIGNATURE` against `registry.npmjs.org` for the SDK 54 tree; the principled options ruled out (a) `strict-ssl=false` and (b) third-party registry mirror per `AGENTS.md` §3.2.1 + `agent-runtime-security.md`. The third deferral is recorded as an **escalation**: S-008 must be a discovery sprint chaired by `orchestrator` with `agent-safety-officer` + `architect` + `engineering-manager` + `mobile-builder` + `devops-engineer` to resolve the network environment or amend ADR-0012. `make check` is green: 143 backend + 203 mobile = 346 tests across 21+ suites (+6 vs. S-006 close). See `docs/done.md` Sprint S-007 entry for the full per-BLG outcomes.
->
-> S-008 (likely **discovery**) opens with: (1) BLG-0016 escalation — what network-environment fix or ADR-0012 amendment lets the SDK 54 install run? (2) does ADR-0012 §1's Strategy 3 (EAS dev client) need to be reconsidered now that "stay on stock Expo Go" has failed three times? (3) any post-MVP UX gaps surfaced by S-006 / S-007 user testing.
+> S-008 (`sdk-upgrade-path-forward`) closed 2026-05-08: **BLG-0022** (discovery sprint) done — ADR-0013 accepted. The three-sprint `UNABLE_TO_VERIFY_LEAF_SIGNATURE` blocker was diagnosed as a Node.js CA bundle staleness issue (Node.js bundles its own Mozilla CA store; if `registry.npmjs.org` rotated to a newer root CA after the installed Node.js version was released, validation fails). **BLG-0016 is now "Ready, executable per ADR-0013 §3"**: pre-flight checklist (update Node.js to v22 LTS / export Windows CA bundle via `NODE_EXTRA_CA_CERTS`) runs before `npx expo install --fix` in S-009. ADR-0012 §1 (EAS dev client rejection) remains in force unless S-009 exhausts the pre-flight checklist. `make check` unchanged: 346 tests. See `docs/done.md` Sprint S-008 entry.
 
 ---
 
@@ -105,8 +103,8 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 
 - ID: BLG-0016
   Title: Upgrade Expo SDK 51 → 54 (Expo Go compatibility + compat-matrix alignment)
-  Status: planned (escalated)
-  Ready: yes — but **deferred for the third sprint running** (S-005 plan said "land in S-006" → deferred at S-006 LOG 18:35 → deferred again at S-007 LOG 21:35). S-007 attempts hit `UNABLE_TO_VERIFY_LEAF_SIGNATURE` against `registry.npmjs.org` for the SDK 54 tree (TLS chain validation failing on the host environment). **Escalation per `AGENTS.md` §4.10**: the third deferral on the same outbound surface triggers an `agent-safety-officer`-led discovery sprint (S-008) to surface options — network-environment fix (different machine / proxy), or ADR-0012 §1 amendment toward Strategy 3 (EAS dev client / TestFlight, accepting the operational shift originally rejected), or split-into-two-upgrade approach (SDK 54 dev-client first, full Expo Go a separate sprint). The in-tree SDK 51 pin set + ADR-0006 §2 encryption stack stay byte-identical until S-008 settles the path forward. **Acceptance bullet 5 (encryption-stack round-trip test, forward-only variant) shipped in S-007** — the test runs under whatever `@noble/ciphers` resolution is loaded, so the day SDK 54 lands it catches a regression in either direction. Anchored to ADR-0012 (with an amendment expected from S-008).
+  Status: planned
+  Ready: yes — **executable per ADR-0013 §3 pre-flight checklist** (S-008 resolved the three-sprint `UNABLE_TO_VERIFY_LEAF_SIGNATURE` blocker: root cause is Node.js CA bundle staleness; fix is Node.js v22 LTS update and/or `NODE_EXTRA_CA_CERTS` Windows CA export — both approaches keep `strict-ssl` fully enabled). Pre-flight checklist must run before `npx expo install --fix`. If checklist is fully exhausted without success, open BLG-0023 for S-010 EAS dev client discovery. Acceptance bullet 5 (encryption-stack round-trip test, forward-only variant) shipped in S-007. Anchored to ADR-0012 + ADR-0013.
   Owner: mobile-builder (with architect, engineering-manager, agent-safety-officer, security-privacy-officer)
   Type: engineering
   Outcome: A real Greek consumer can run the Watch-Your-Money app on stock Expo Go (iOS or Android, latest store version) end-to-end. `expo-doctor` reports a clean compat matrix (no version-drift warnings). The encryption stack from ADR-0006 (`@noble/ciphers`, `expo-secure-store`, `expo-crypto`) survives byte-identically. The two existing in-tree compat-matrix warnings (`@react-native-community/netinfo`, `typescript`) are explicitly resolved against the SDK 54 matrix.
@@ -130,23 +128,4 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 
 <!-- BLG-0017, BLG-0018, BLG-0019 shipped in S-006 — see `docs/done.md` Sprint S-006 entry. -->
 <!-- BLG-0020, BLG-0021 shipped in S-007 — see `docs/done.md` Sprint S-007 entry. -->
-<!-- BLG-0016 (deferred from S-006 + S-007) is unchanged above; **escalated** to S-008 discovery. -->
-
-- ID: BLG-0022
-  Title: BLG-0016 escalation — discovery sprint to surface SDK upgrade path forward
-  Status: planned
-  Ready: no (this is the trigger for the next discovery sprint S-008; will be Ready when S-008 opens)
-  Owner: orchestrator (chair) with agent-safety-officer, architect, engineering-manager, mobile-builder, devops-engineer
-  Type: engineering / agentic
-  Outcome: An ADR (likely ADR-0013 or an ADR-0012 amendment) that resolves the BLG-0016 third-deferral so the upgrade can actually run in S-009 implementation. Output: a path that does not require disabling `strict-ssl`, does not expand the outbound allowlist mid-sprint, and keeps `agent-runtime-security.md` honored byte-identically.
-  Acceptance:
-  - Multi-round ADR debate (per `AGENTS.md` §4.4) covering the three options identified in `S-007-REV-0001`: (a) network-environment fix (different machine / network for the install, an `npm` proxy that strips the failing TLS validation in a controlled way, or a one-shot `npm-cache add tarball` flow against pre-validated tarballs from a different host), (b) ADR-0012 §1 amendment toward Strategy 3 (EAS dev client / TestFlight, accepting the operational shift originally rejected), (c) split-into-two-upgrade approach (SDK 54 dev-client first, full Expo Go a separate sprint).
-  - `agent-safety-officer` co-sign on the chosen path (the supply-chain implications of every option must be reviewed against `agent-runtime-security.md`).
-  - `architect` + `engineering-manager` co-sign on the technical approach.
-  - The output ADR makes BLG-0016 "Ready and executable in S-009 implementation" — no fourth deferral on the same outbound surface.
-  - The discovery sprint either also folds in BLG-0014 (chart-kit re-eval — depends on the same SDK upgrade landing) or explicitly defers it to a later sprint with reasoning recorded.
-  Design: N/A.
-  Approach: Discovery sprint chaired by `orchestrator`. Output is an ADR, not code.
-  Size: M (multi-round debate + supply-chain review of every chosen path)
-  Impact-notes: { external-surface: depends on chosen path; supply-chain: yes — the chosen path will define how the SDK 54 transitive re-pin is reviewed }
-  Links: [docs/adr/S-005-ADR-0012-Expo-sdk-upgrade.md, docs/sprints/S-007-implementation-sdk-upgrade-and-on-device-acceptance/S-007-LOG-0001-Sdk-upgrade-and-on-device-acceptance.md, docs/sprints/S-007-implementation-sdk-upgrade-and-on-device-acceptance/S-007-REV-0001-Sdk-upgrade-and-on-device-acceptance.md, .agents/rules/agent-runtime-security.md]
+<!-- BLG-0022 shipped in S-008 — see `docs/done.md` Sprint S-008 entry. ADR-0013 accepted. -->
