@@ -4,95 +4,62 @@ The current direction of the project and the focus of the next sprint.
 
 ## Where we are right now
 
-Sprint **S-009 (implementation, `sdk-upgrade-and-on-device-acceptance-v2`)** has just closed. **The three-sprint Expo SDK 51 → 54 upgrade landed.**
+Sprint **S-010 (discovery, `receipt-format-scope-and-auth-modernization`)** has just closed. **Three ADRs accepted + one DES recorded.** Both drift findings from the 2026-05-12 live on-device acceptance run are resolved at the decision level; implementation lands in S-011.
 
-ADR-0013 §3 pre-flight checklist executed end-to-end on the local Windows host:
+- **ADR-0014 — Receipt-format scope expansion.** 9-participant chaired debate. GR parser becomes a registry-of-adapters within `backend/app/parsers/gr/` (sibling subpackages `einvoicing/`, `aade/`, `epsilon/`). New boolean `is_limited_info` on `ParsedReceipt` + `receipts` schema (default false; lands in S-011 under BLG-0027). Family A (AADE tameiakí `q1.php?SIG=...`) in MVP as a limited-info adapter (gated on BLG-0030 spike confirming SKU-level ceiling). Family B (Epsilon Net) in MVP as a full-SKU adapter. Family C (15-hex non-URL codes) pending identification (BLG-0029). Two new outbound hosts added to `.agents/context/outbound-allowlist.md`: `www1.aade.gr` and `epsilondigital-3rdpartc.epsilonnet.gr`, scoped to parser + spike fetches with §5.8.1 consent precondition. `AGENTS.md` §2.2 / §2.8 / §2.9 amended verbatim per ADR-0014 §6.
+- **ADR-0015 — Asymmetric JWT verification.** 6-participant chaired debate. Supersedes ADR-0002 §1. Hand-rolled verifier + `cryptography==45.0.1` (one dep, not two; PyJWT rejected). JWKS cache: 600s TTL, 60s refetch-floor, hard-fail-401 on unreachable. Algorithm allowlist: ES256 + RS256 + HS256-transitional. ≥ 22 tests, ≥ 95% line coverage on `app/auth.py`. Mobile coupling: BLG-0024 (silent refresh + retry before sign-out).
+- **ADR-0016 — JWT header logging.** 4-participant chaired debate. Amends ADR-0002 §6. JWT header fields (`alg`, `typ`, `kid`-truncated) classified as PII-safe public metadata; payloads / signatures / full token / `Authorization` value never logged. ≥ 8 tests including a redaction-regex scan across every captured log record.
+- **DES-0006 — Option A (HS256-rollback) sufficiency confirmed.** End-to-end verified 2026-05-12 17:43 UTC+3 (synthetic curl 422 + live device 502 — auth gate accepts tokens in both cases). Sufficiency window: until BLG-0023 ships in S-011.
 
-- Step 1 (`node --version` → v22.22.0) passed.
-- Step 2 (Node.js update) skipped — already on LTS.
-- Step 3 (TLS smoke test, `npm pack expo@^54.0.0 --dry-run`) **failed even on Node v22** with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`.
-- Step 3a (export Windows OS-managed CA bundle to `~/ca-bundle.pem` + set `NODE_EXTRA_CA_CERTS`) **passed the retry on the first try**: 62 OS-managed root CAs, 97208-byte PEM bundle, never committed, fully reversible.
-- Step 4 (`npx expo install --fix` + `expo-doctor`) clean: **17/17 checks passed, no issues detected**.
+Backlog state after S-010:
 
-`mobile/package.json` rewritten with the SDK 54 pin set (exact pins per ADR-0007 §1): `expo@54.0.34`, `react@19.1.0`, `react-native@0.81.5`, plus the full Expo SDK 54 native modules and `jest-expo@54.0.17`. Both ADR-0012 §3 deviations closed: `@react-native-community/netinfo@11.4.1` (was 11.3.2), `typescript@5.9.2` (was 5.6.3). Three drift candidates resolved in-sprint as runtime-tree mechanics: `mobile/tsconfig.json` `moduleResolution: "node"` override removed; eight `JSX.Element` migrated to `React.JSX.Element`; `babel-preset-expo@54.0.10` + `expo-modules-core@3.0.30` promoted to direct devDependencies for SDK 54 + npm 10 hoisting. The S-007 encryption-stack round-trip test runs unchanged under SDK 54's `@noble/ciphers@0.5.3`. `react-native-chart-kit@6.12.0` survived — BLG-0014 stays passive per ADR-0012 §6. ADR-0012 §1 (EAS dev client rejection) **remains in force** — Option A was sufficient.
+- **Ready**: BLG-0023 (M), BLG-0024 (S), BLG-0025 (XS), BLG-0027 (M, gated on BLG-0030), BLG-0028 (M, gated on fixture), BLG-0030 (XS-S, gated on consented receipt), BLG-0032 (S, couples to BLG-0027 + 0028).
+- **Planned (gated)**: BLG-0029 (XS, gated on owner photo of Family C receipt), BLG-0033 (M, post-MVP), BLG-0034 (XS, post-BLG-0023).
+- **Carried**: BLG-0004, BLG-0009, BLG-0011, BLG-0014, BLG-0015 — unchanged.
 
-The §2.8 MVP bullets 4 (on-device receipt scanning under stock Expo Go) and 9 (PDF export → native share sheet) are now reachable on a real Greek consumer's phone via the verification path in `S-009-UREV-0001`.
+For the latest user-facing snapshot, read `AGENTS.md` §2.6 (unchanged — no user-visible behavior shipped in this discovery sprint) and §2.7 (updated with the S-010 close).
 
-`make check` is **green at S-009 close: 143 backend + 203 mobile = 346 tests across 21+ suites** under `jest-expo@54.0.17` + `react@19.1.0` + `react-native@0.81.5`. Identical count to S-007 / S-008 close — no new tests; the contract surface didn't change, only the runtime tree moved underneath.
-
-For the latest user-facing snapshot, read `AGENTS.md` §2.6 (BLG-0016 + BLG-0020 / BLG-0021 on-device-resolution lines added) and §2.7 (snapshot now reflects S-009 closing).
-
-## Drift discovered post-S-009 close (2026-05-12 live debugging session)
-
-Between S-009 close and the start of S-010, a live on-device debugging session with the project owner surfaced **two distinct drift findings** that redirect S-010's theme and add three new backlog items.
-
-### Drift A — Backend auth misconfigured against Supabase asymmetric JWT signing keys
-
-While exercising the §2.8 MVP end-to-end on a real device, **every `POST /receipts/parse` request returned 401**. Root cause traced in ~10 minutes via an ad-hoc diagnostic log line added to `jwt_exception_handler` (now also tracked as BLG-0025): the Supabase project was auto-rotated 6 days earlier (2026-05-06) from the legacy HS256 JWT secret to the new ECC P-256 (ES256) signing key. The hand-rolled HS256-only verifier in `backend/app/auth.py` (ADR-0002 §1, deliberately stdlib-only) refused the ES256 token with `jwt_malformed: unsupported alg: 'ES256'`. Compounding: the operator's `SUPABASE_JWT_SECRET` env var had a UUID pasted in (likely the kid of the current signing key), not the actual legacy HS256 secret value.
-
-**Mitigation in-session (Option A)**: rotate the Supabase project back to the Legacy HS256 signing key via JWT Signing Keys → "Move to standby" on the previously-used key → "Rotate keys", then set `SUPABASE_JWT_SECRET=<the actual legacy secret value from the "Reveal" button on the Legacy JWT Secret tab>`, then full uvicorn restart. **Option A is verified end-to-end as of 2026-05-12 17:43 UTC+3**: (a) a synthetic-URL `POST /receipts/parse` from `127.0.0.1` returned `422 Unsupported QR URL` in 47 ms with no `jwt_rejected` line — auth gate passed, parser correctly rejected the fake URL; (b) live `POST /receipts/parse` from the test device at `192.168.1.208` returned `502 upstream_error` for at least one in-wallet receipt — meaning that receipt passed both the on-device validator AND the backend auth gate before failing only at the upstream-fetch step. The mitigation holds until BLG-0023 lands.
-
-**Long-term fix**: BLG-0023 (asymmetric JWT verification with JWKS support — S-010 discovery → S-011 implementation). Co-fix: BLG-0024 (soft auth-error handling in the scanner — silent token refresh + retry before sign-out, so a transient JWKS-cache miss can't hard-sign-out the user).
-
-### Drift B — Real Greek receipts do not match the §2.8 "Entersoft or SoftOne via e-invoicing.gr" scope
-
-The same on-device run surfaced **three distinct Greek QR families**, none currently handled by `mobile/src/parsers/gr.ts` or `backend/app/parsers/gr/`. Of the receipts scanned: **0 were `e-invoicing.gr` viewer URLs**.
-
-| Family | Shape | Count | Notes |
-| --- | --- | --- | --- |
-| A | `https://www1.aade.gr/tameiakes/myweb/q1.php?SIG=<hex>` | 8 | AADE "Σύστημα Σήμανσης" cash-register per-receipt signature URL. The most common Greek consumer receipt format. **Open product question**: AADE's verification page typically returns merchant + date + signature + totals — *not* SKU-level. Hits §2.2 differentiator. |
-| B | `https://epsilondigital-3rdpartc.epsilonnet.gr/fd/<hash>:<n>` | 1 | Epsilon Net fiscal-doc viewer — same tier as Entersoft / SoftOne but on their own domain instead of `e-invoicing.gr`. Adapter pattern likely transfers cleanly. |
-| C | `45C07BD642067E5` (15 hex chars, not a URL) | 5 (same physical receipt re-scanned) | Unknown — possibly a MARK, fiscal signature, or verification code. Identification + integration path TBD. |
-
-This is the dominant signal for what S-010 must discover. **Long-term fix**: BLG-0026 (umbrella discovery scope; spawns per-family Ready BLGs at S-010 close).
+`make check` posture: **346 tests across 21+ suites — green** (unchanged from S-009 close, as expected for a zero-code discovery sprint per `AGENTS.md` §4.7 + §4.1.1).
 
 ## Next sprint
 
-- **Type**: `discovery`
-- **Theme**: **Receipt-format scope expansion — AADE tameiakí + Epsilon Net + non-URL codes** (Drift B). The four post-MVP discovery questions previously listed here (post-MVP direction quartet, §2.9 refresh, EAS pre-launch ADR, audit refresh) become subordinate to this finding; they may still be on the table but only after the receipt-format scope is decided.
-- **Number**: **S-010**
-- **Why discovery**: §4.1.1 — multi-agent scope-redefining decision requiring `architect` + `parser-specialist` + `data-architect` + `product-owner` + `product-manager` + `security-privacy-officer` + `agent-safety-officer` + `localization-specialist`, chaired by `orchestrator` per §4.4. No production code can ship until the ADRs land.
+- **Type**: `implementation` (Ready queue refilled by S-010).
+- **Theme**: **Auth modernization + first GR adapter expansions** — BLG-0023 (asymmetric JWT verifier) lands first because it gates the long-term auth posture; BLG-0024 (mobile soft auth-error) and BLG-0025 (JWT-header logging contract + tests) ship in the same PR or right after; BLG-0030 (AADE HTML-shape spike) runs in parallel since it touches `docs/spikes/` not `backend/app/`; BLG-0032 (mobile QR-validator discriminated-union mirror) couples to BLG-0027 + 0028; BLG-0027 + BLG-0028 (the per-family adapters) are pulled if BLG-0030 + fixture acquisition resolve in time, otherwise carry to S-012.
+- **Number**: **S-011**.
+- **Why implementation**: §4.1.2 — Ready queue is non-empty (BLG-0023 / 0024 / 0025 / 0030 / 0032 all Ready). `make check` must be green at sprint close per §4.7.
 
-### Discovery questions for S-010 (revised order — receipt-format expansion first)
+### Sizing risk
 
-1. **Receipt-format scope (BLG-0026, primary theme).** For each of the three families A / B / C:
-   - Is it in scope for the MVP §2.8 bullet 3, or do we revise §2.8 to acknowledge a "supported QR set" smaller than "all Greek receipts"?
-   - Does the integration path preserve §2.2 SKU-level data? Specifically for Family A (AADE), what is the data ceiling when scanning the signature URL alone, and is an alternative path (myDATA B2C with user TIN — new auth surface) acceptable for §2.4 hard constraints?
-   - Each new family adds a new outbound host — `www1.aade.gr` and `epsilondigital-3rdpartc.epsilonnet.gr`. `agent-safety-officer` must approve the allowlist update before any spike fetches.
-2. **Auth modernization (BLG-0023 + BLG-0024).** Adopt Supabase asymmetric JWT signing keys (ES256/JWKS) on the backend. Multi-sign-off per §4.11: `architect` + `security-privacy-officer` + `agent-safety-officer` + `engineering-manager` + `backend-builder`. Couples with the soft auth-error mobile change so the rollout doesn't sign users out on a transient JWKS-cache miss.
-3. **Diagnostic log formalization (BLG-0025).** Lock in the ad-hoc 2026-05-12 change with a regression test + a redaction test (token / payload / signature never logged) + an ADR-0002 §6 amendment recognizing JWT *headers* as loggable public metadata.
-4. **Auth-fix verification (Option A from this session) — DONE in-session.** Both a synthetic-URL test and a live mobile request confirmed the HS256 auth gate now accepts Supabase-issued tokens after the JWT-key rollback. No S-010 DES note required for this; the verification record lives in this `docs/plan.md` "Drift A" section and in terminal 39's trace.
-5. **Deferred — only addressed if time permits after 1–4.** The previous quartet:
-   - (a) Real-receipt fixture set + drift detection (BLG-0004 + BLG-0009) — now coupled to BLG-0026 (each new family needs its own fixtures).
-   - (b) EU country expansion — likely **deferred to S-012+**. Family C may turn out to be a Greek format anyway; let the country-agnostic parser registry first prove out on three GR sub-adapters before adding a non-GR adapter.
-   - (c) Post-MVP UX gaps (BLG-0011 language switch).
-   - (d) §2.9 out-of-scope list refresh.
-   - (e) EAS pre-launch ADR (ADR-0007 §7).
-   - (f) `agent-safety-officer` audit refresh on `NODE_EXTRA_CA_CERTS` runbook.
+The Ready queue is M-heavy: BLG-0023 (M) + BLG-0024 (S) + BLG-0025 (XS) + BLG-0030 (XS-S) + BLG-0032 (S) ≈ ~1.5 M-equivalents *before* pulling either of BLG-0027 / BLG-0028 (each M). `product-manager` will scope at S-011 PLN open and may choose to ship BLG-0023 + BLG-0024 + BLG-0025 + BLG-0030 + BLG-0032 in S-011 and carry BLG-0027 / BLG-0028 to S-012. The hard ordering constraint is **BLG-0023 + BLG-0024 + BLG-0025 must land together** (per ADR-0015 §8 and ADR-0016 §3 — they share a PR for review safety).
 
-### Acceptance at S-010 review
+### Acceptance at S-011 review
 
-- ADR(s) under `docs/adr/S-010-*` covering BLG-0026 (per-family scope decisions), BLG-0023 (asymmetric JWT verification), and an amendment to ADR-0002 §6 (BLG-0025 logging recognition).
-- Per-family Ready BLGs (e.g. BLG-0027 AADE adapter, BLG-0028 Epsilon Net adapter, BLG-0029 non-URL-code identification) carrying outcome, acceptance criteria, fixture-acquisition plan with §5.8.1 consent, localization + RLS + country-code impact notes.
-- DES note confirming Option A is sufficient until BLG-0023 lands.
-- `.agents/context/outbound-allowlist.md` updated with `www1.aade.gr` and `epsilondigital-3rdpartc.epsilonnet.gr` (allowlisted for parser fetches only, allowlisted for in-sprint spike fetches only) per `agent-safety-officer` sign-off.
-- `make check` not run if no code changed (§4.7 — discovery sprint).
-- `AGENTS.md` §2.6 unchanged (no user-visible behavior shipped in discovery); §2.7 + `docs/plan.md` updated at sprint close per §4.1.5.
+- `cryptography==45.0.1` in `backend/requirements.txt`; `backend/.env.example` updated with the new config variables; `backend/app/auth.py` rewritten with the asymmetric verifier + JWKS cache + algorithm allowlist; `backend/app/auth.py:extract_header_metadata` helper extracted.
+- `backend/tests/test_auth_logging.py` (new) with the ≥ 8 tests from ADR-0016 §3 including the redaction regex scan; `backend/tests/auth/test_jwt_*.py` expanded to ≥ 22 tests covering the algorithm allowlist; ≥ 95% line coverage on `app/auth.py`.
+- `mobile/src/screens/scanner/state.ts` (and equivalent state files for tag-panel, profile, receipt-detail) extended with the recoverable + terminal auth-error states; `refreshSession()` adapter wired through `App.tsx`.
+- `docs/spikes/gr-aade-html-shape/` with the consented AADE receipt's HTML + field-map + ToS/robots.txt review + adapter-recommendation summary.
+- `mobile/src/parsers/gr.ts` exposes `validateGrQrCode` (discriminated union); existing `validateGrQrUrl` stays as a delegate.
+- `docs/runbooks/` gains two new runbooks: "rotate Supabase JWT signing keys" and "rollback to HS256-only."
+- `make check` green; 346 → likely ~370+ tests after the BLG-0023 + BLG-0025 additions land.
+- `AGENTS.md` §2.6 updated with any new user-visible behavior (BLG-0024 toast on the recoverable path; BLG-0027 + BLG-0028 banner / scanner family-recognition if they land in S-011); §2.7 snapshot at S-011 close.
+- Operator runbook step at S-011 deploy: rotate the Supabase project from "Legacy HS256" back to "JWT Signing Keys (ES256)" — the Option A workaround reverses once BLG-0023 is verified in staging.
 
 ### Cadence after that
 
-- **S-011** — implementation, scoped to the Ready items that emerge from S-010. Likely BLG-0023 + BLG-0024 + BLG-0025 + the first 1–2 per-family adapters from BLG-0026.
+- **S-012** — likely implementation, carrying BLG-0027 + BLG-0028 + BLG-0029 (if owner photo arrives) + any new BLGs that emerge from BLG-0030's recommendation. If a non-trivial product decision surfaces (e.g. AADE genuinely forbids automated fetches and BLG-0027 narrows to QR-string-only mode), a small discovery interlude may be inserted.
 
-## Open questions for S-010
+## Open questions for S-011
 
-- **Family C identification.** What system emits a 15-hex-char QR with no URL prefix? Candidate hypotheses: (i) older or non-certified thermal printer encoding the receipt MARK without a viewer URL, (ii) a B2B-only myDATA identifier, (iii) a verification code intended to be typed into a portal rather than scanned. Resolution path: ask the project owner for the printed receipt's merchant + a photo of the QR area + the printed text near the QR (which usually identifies the system).
-- **AADE SKU-level data ceiling.** Can scanning `q1.php?SIG=...` plus following onward links from the AADE verification page get us to SKU-level, or is myDATA B2C the only path? Resolution: a sandbox spike against a consented AADE receipt under `docs/spikes/`, never via an LLM/MCP per §5.8.1.
-- **`502 upstream_error` from the phone.** The same 2026-05-12 session logged two `502 upstream_error` responses from a real device-originated `POST /receipts/parse`, meaning at least one in-wallet QR *did* pass the current `e-invoicing.gr` validator but failed at the upstream-fetch step. S-010 should fold "of receipts that pass the validator, what fraction fetch?" into the BLG-0026 spike alongside "what fraction of in-wallet receipts pass the validator at all?". Candidate causes: receipt expired upstream, e-invoicing.gr 404 for the UUID + token pair, rate-limiting, HTML drift, or a near-matching camera misread.
+- **The 2026-05-12 `502 upstream_error` from the live device.** The same session that triggered S-010 logged a `502 upstream_error` from `POST /receipts/parse` for a real device-originated request that *did* pass the on-device validator. Hypothesis: that scan was actually an AADE QR misread as an e-invoicing.gr URL by the pre-validator. BLG-0030's HTML-shape work may incidentally explain this. If BLG-0030 lands without explaining the 502, open BLG-0035 in S-011 close.
+- **AADE ToS / robots.txt outcome.** If AADE forbids automated fetches, BLG-0027 narrows to "parse-the-QR-string-only mode" (the SIG hex becomes `mark`, merchant remains "Άγνωστος έμπορος" until a future feature). The §2.2 / §2.8 wording from ADR-0014 §6 already permits this degraded path because it explicitly hedges to "merchant + total + date when the format is limited-info."
+- **Family C identification timing.** BLG-0029 is gated on the project owner sending a photo of the printed receipt + system name. If it doesn't arrive by S-011 open, BLG-0029 carries to S-012.
 
 ## Notes for whoever picks this up
 
-- **ADR-0013 closed.** Its purpose (a precise, exhaustion-clear pre-flight checklist for the SDK 54 install) was served. The Step 3a fallback was the operative path; future SDK upgrades that hit the same TLS failure mode follow the same pattern. Do not re-open ADR-0013.
-- **The encryption-stack round-trip test from S-007 is now the canonical regression canary across SDK upgrades.** Forward-only variant; SDK-version-agnostic; runs in `make check`.
-- **PowerShell `make check` quirk persists** with the Greek folder name `Υπολογιστής` in the workspace path. Workaround: invoke `ruff check`, `mypy`, `pytest`, `tsc`, `jest` directly. Logged since S-003. Future Makefile fix is a low-priority drift item (no BLG opened — the workaround works).
-- **`NODE_EXTRA_CA_CERTS` is per-developer-machine.** Set it once via `[Environment]::SetEnvironmentVariable('NODE_EXTRA_CA_CERTS', "$env:USERPROFILE\ca-bundle.pem", 'User')`. CI is unaffected — GitHub Actions runners ship a current Mozilla CA bundle. This is documented in `S-009-UREV-0001`.
-- **The S-005 ADRs + DES are still the contracts.** ADR-0008, ADR-0009, ADR-0010, ADR-0011 stay locked. ADR-0012 is now byte-identical except §3 (deviations closed). DES-0004, DES-0005 unchanged.
+- **ADR-0014 / ADR-0015 / ADR-0016 are the contracts now.** Read all three before opening BLG-0023 / BLG-0027 / BLG-0028 implementation work. The multi-round debates in each ADR record the rationale; if a design decision seems surprising during implementation, the answer is almost certainly already in those rounds.
+- **Option A is the production posture today.** The Supabase project is on Legacy HS256 keys. DES-0006 documents this and the reversal procedure. **Do not change Supabase signing-key configuration until BLG-0023 is verified in staging.** The S-011 BLG-0023 deploy step explicitly switches the project back to JWT Signing Keys *after* the new verifier is live.
+- **No outbound fetches to AADE or Epsilon Net have happened yet.** The allowlist is updated; the first actual HTTP calls are BLG-0030 (AADE, under §5.8.1 consent) and the BLG-0028 inline spike (Epsilon Net, under §5.8.1 consent). Spike artifacts live under `docs/spikes/` and are never sent to LLMs / MCPs (§3.2.2).
+- **The diagnostic log line in `backend/app/routes/receipts.py` lines 287–339 (working-tree carry-over from the 2026-05-12 session) is correct in shape.** BLG-0025 / ADR-0016 lock it in with a regression test + a redaction regex test. The S-011 BLG-0023 PR absorbs it as the verifier rewrite touches the same surface; the header-extraction logic moves to `app/auth.py:extract_header_metadata`.
+- **PowerShell `make check` quirk persists** with the Greek folder name. Direct binary invocations (`ruff check`, `mypy`, `pytest`, `tsc`, `jest`) remain the documented workaround.
+- **`NODE_EXTRA_CA_CERTS` workaround from S-009 is still in force.** Per-developer-machine; not committed; documented in `S-009-UREV-0001`.
+- **The S-005 / S-007 / S-008 / S-009 ADRs stay locked.** No changes from this sprint. ADR-0001 (parser interface) is **populated** by ADR-0014 but not superseded — the contract holds verbatim.

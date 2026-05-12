@@ -8,8 +8,10 @@ Owner: `agent-safety-officer`. Co-sign required from `architect` for any additio
 
 | Host | Why | Used by |
 |------|-----|---------|
-| `https://e-invoicing.gr` | Greek e-invoice viewer + API | backend parser (`parser-specialist`) |
-| `https://*.supabase.co` | Supabase managed Postgres + Auth | backend service key, mobile anon key |
+| `https://e-invoicing.gr` | Greek e-invoice viewer + API (Family A — Entersoft / SoftOne / etc.) | backend parser (`parser-specialist`) |
+| `https://www1.aade.gr` | Greek AADE tameiakí "Σύστημα Σήμανσης" per-receipt signature verification (Family A — `q1.php?SIG=<hex>`). Scope: production parser fetches **+** `docs/spikes/` with §5.8.1 consent. Added in S-010 per ADR-0014 §7. Production fetches gated on the BLG-0027 ToS / robots.txt review. | backend parser (`parser-specialist`) |
+| `https://epsilondigital-3rdpartc.epsilonnet.gr` | Epsilon Net fiscal-document viewer (Family B — `fd/<hash>:<n>`). Scope: production parser fetches **+** `docs/spikes/` with §5.8.1 consent. Added in S-010 per ADR-0014 §7. | backend parser (`parser-specialist`) |
+| `https://*.supabase.co` | Supabase managed Postgres + Auth. As of ADR-0015 the production runtime contacts **both** `/rest/...` (data) and `/auth/v1/.well-known/jwks.json` (JWKS for asymmetric JWT verification). Same hostname; no new entry. | backend service key, mobile anon key |
 | `https://*.railway.app` *(or)* `https://*.onrender.com` | Backend hosting | `devops-engineer` |
 | `https://exp.host` / `https://expo.dev` | Expo build / OTA | `devops-engineer` |
 
