@@ -4,6 +4,39 @@ Append-only ledger of everything **completed**, grouped by sprint, newest on top
 
 ---
 
+## Sprint S-012 — Mobile QR-validator discriminated-union shape (closed 2026-05-12)
+
+> Implementation sprint, invoked by `go` with no further direction. **One BLG shipped: BLG-0032** — the smallest plausible Ready item not gated on consented fixtures, per `.agents/agents/go.md` rule #3 ("no mid-sprint questions"). The on-device QR validator now recognises all three Greek receipt QR families documented in ADR-0014 §3 plus the `unknown_code` placeholder branch for the Family C non-URL hex codes awaiting BLG-0029 identification. Backend adapters for AADE (BLG-0027) and Epsilon Net (BLG-0028) remain Ready in the backlog, still gated on consented fixtures under `AGENTS.md` §5.8.1. `make check`: **411 tests across 21+ suites — green** (389 → 411, +22 from the new validator suite).
+
+- **BLG-0032 — Mobile `validateGrQrCode` discriminated-union mirror** *(S, product)*. `mobile/src/parsers/gr.ts` rewritten end-to-end per ADR-0014 §1. New exported function `validateGrQrCode(input: string)` returns a discriminated union covering Family A (`einvoicing` → `{ uuid, token }`), Family B (`aade` → `{ sig }`), Family C (`epsilon` → `{ hash, index }`), and the Family C placeholder (`unknown_code` → plain hex strings of 12–64 chars, awaiting BLG-0029 to identify the cash-register / fiscal-system origin). The six regex constants in the file mirror the published ADR-0014 §3 patterns verbatim (`GR_VIEWER_PATH_REGEX` unchanged for defense-in-depth back-compat with `mobile/__tests__/parsers/gr.test.ts`'s pinned-source assertion; `GR_AADE_HOST` / `GR_AADE_PATH` / `GR_AADE_SIG_REGEX`; `GR_EPSILON_HOST` / `GR_EPSILON_PATH_REGEX`; `GR_UNKNOWN_HEX_CODE_REGEX`). `validateGrQrUrl` rewritten as a delegate to `validateGrQrCode` narrowed to the einvoicing happy path — non-einvoicing families are surfaced as `{ ok: false, reason: "host" }` to preserve the pre-BLG-0032 contract that `mobile/src/api/receipts.ts` relies on for its defense-in-depth pre-flight (so today's e-invoicing-only backend cannot be hit with an AADE or Epsilon URL until the matching adapters land). `mobile/src/screens/ScannerScreen.tsx` consumes the discriminator and gates submission on a module-level constant `IMPLEMENTED_FAMILIES = new Set<GrQrFamily>(["einvoicing"])`; recognised-but-not-yet-implemented families (AADE / Epsilon / `unknown_code`) route to the existing `QR_UNSUPPORTED` state with a dev-only `console.warn("[scanner] QR family not yet implemented:", family)`. No reducer / state-machine change required. No new i18n strings. When BLG-0027 + BLG-0028 ship in S-013, widening `IMPLEMENTED_FAMILIES` is a one-line change that flips both adapters on simultaneously.
+
+- **Test suite expansion.** `mobile/__tests__/parsers/gr.test.ts` grew from 7 to 29 tests. All 8 pre-existing `validateGrQrUrl` tests stay green, including the pinned-regex-source defense-in-depth assertion. 21 new tests cover: Family A accept + path reject, Family B (AADE) accept + mixed-case-hex accept + non-hex-SIG reject + missing-SIG reject + wrong-path reject, Family C (Epsilon) accept + missing-index reject + non-numeric-index reject + wrong-path reject, Family D placeholder (the known 15-hex example `45C07BD642067E5` from the 2026-05-12 wallet sample, plus a longer 32-hex blob, plus short-hex reject, plus mixed-character reject), universal rejection paths (`malformed` / oversized / `scheme` / `host` / fall-through-to-non-hex), and a cross-family disambiguation sanity check.
+
+- **No backend change, no schema change, no outbound surface change, no new runtime dep.** The `www1.aade.gr` + `epsilondigital-3rdpartc.epsilonnet.gr` allowlist entries from S-010 stay scoped to BLG-0030 / BLG-0027 / BLG-0028 — none of which run in S-012. The `is_limited_info` schema migration from ADR-0014 §2 stays bundled with BLG-0027 for S-013 (so it lands in the same PR as the first adapter that actually emits `is_limited_info=true`).
+
+- **Carried to S-013.** Five items stay in the backlog with unchanged gating:
+  - **BLG-0030** (AADE HTML-shape spike) — gated on a consented AADE receipt under §5.8.1. Ready.
+  - **BLG-0027** (AADE adapter, M) — gated on BLG-0030 outcome. Ready.
+  - **BLG-0028** (Epsilon Net adapter, M) — gated on a consented Epsilon Net fixture under §5.8.1. Ready.
+  - **BLG-0029** (Family C identification spike, XS) — gated on project-owner photo + system name. Planned.
+  - **BLG-0034** (HS256 retirement, XS) — gated on BLG-0023 running one full production release cycle. Planned.
+
+`make check` at sprint close: **411 tests across 21+ suites — green**. Backend: 182 tests (unchanged from S-011 — no backend touched). Mobile: 229 tests (207 → 229, +22 — every new validator test). Mobile `tsc --noEmit` clean. Backend `ruff check .` + `mypy app` both clean (31 source files).
+
+Sign-offs (sprint review per §4.11):
+
+- `parser-specialist` + `qa` — new / changed parser logic: signed off. The mobile validator mirrors the published ADR-0014 §3 shapes; backend adapters carry to S-013; the test suite covers every discriminator branch + every rejection path; the cross-family disambiguation contract is asserted.
+- `product-designer` + `localization-specialist` — new mobile screen / UX flow: **N/A** (no user-visible flow change beyond the silent reclassification of AADE / Epsilon scans from "unparseable" into "recognised but not yet supported," which surfaces through the existing `scanner.error.unsupported.toast` string). No new strings shipped.
+- `agent-safety-officer` + `engineering-manager` — new runtime dep: **N/A** (none added).
+- `agent-safety-officer` + `architect` — new MCP integration / outbound host: **N/A** (none added; allowlist entries from S-010 stay scoped to BLG-0030 / BLG-0027 / BLG-0028).
+- `security-privacy-officer` — user-data flow change: **N/A** (no PII touched).
+- `architect` + `engineering-manager` — API contract change: **N/A** (no backend endpoint added or changed).
+- `data-architect` + `security-privacy-officer` — schema migration / RLS policy: **N/A** (deferred to BLG-0027 in S-013).
+- `orchestrator` — sprint scope change mid-sprint: **N/A** (no scope expansion; the four other Ready items in the queue stayed parked behind their fixture gates per the S-012 PLN).
+- `agents-doctor` — adding / retiring an agent or editing `AGENTS.md` structurally: **N/A** (only §2.6 + §2.7 content edits by `product-owner` per the §4.11 sign-off matrix).
+
+---
+
 ## Sprint S-011 — Auth modernization + JWT header logging contract (closed 2026-05-12)
 
 > Implementation sprint. **Three BLGs shipped together in one PR** per the ADR-0015 §8 + ADR-0016 §3 hard-ordering constraint: BLG-0023 (asymmetric JWT verifier), BLG-0024 (mobile soft auth-error), BLG-0025 (JWT-header-logging contract + tests). The 2026-05-12 incident class — "Supabase auto-rotates signing keys, every backend endpoint returns 401" — is now structurally impossible at the verifier level, and a transient JWKS-unreachable window no longer signs the user out. `make check` posture: **389 tests across 21+ suites — green** (346 → 389 = +43: 39 new backend tests covering ES256 / RS256 / HS256-transitional / JWKS-cache / header-extraction + the redaction-regex scan, plus 4 new mobile tests covering the recoverable / terminal auth-error split). The four other Ready items at sprint open (BLG-0030 / BLG-0027 / BLG-0028 / BLG-0032) carry to S-012 — see Carried-out section below.

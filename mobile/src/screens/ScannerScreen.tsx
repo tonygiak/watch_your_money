@@ -37,12 +37,25 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 
 import { postReceiptsParse } from "../api/receipts";
 import { t } from "../lib/i18n";
-import { validateGrQrUrl } from "../parsers/gr";
+import { type GrQrFamily, validateGrQrCode } from "../parsers/gr";
 import {
   initialScannerState,
   scannerReducer,
   telemetryEventFor,
 } from "./scanner/state";
+
+/**
+ * Greek QR families that currently have a working backend adapter at
+ * `POST /receipts/parse`. AADE / Epsilon / Family-C are recognised on-device
+ * by `validateGrQrCode` per ADR-0014 §3 / BLG-0032, but routing them to the
+ * backend today would just round-trip a 422 `UnsupportedQrUrl` — so we
+ * deliberately keep them in the `unsupported_qr` UX path until BLG-0027 +
+ * BLG-0028 ship. Widening this set is a one-line change in S-013 once the
+ * adapters land.
+ */
+const IMPLEMENTED_FAMILIES: ReadonlySet<GrQrFamily> = new Set<GrQrFamily>([
+  "einvoicing",
+]);
 
 type Props = {
   bearerToken: string;
@@ -124,17 +137,31 @@ export default function ScannerScreen(props: Props): React.JSX.Element {
   // ---- Camera scan handler ------------------------------------------------
   const onBarcodeScanned = useCallback((event: { data: string }) => {
     if (state.status !== "scanning") return;
-    const validation = validateGrQrUrl(event.data);
+    const validation = validateGrQrCode(event.data);
     if (!validation.ok) {
-      // DEV-ONLY diagnostic: print the rejected URL so we can decide whether
-      // the receipt is genuinely unsupported or the validator needs extending.
-      // Remove this `console.warn` once the supported-providers list is settled.
+      // DEV-ONLY diagnostic: print the rejected payload so we can decide
+      // whether the receipt is genuinely unsupported or the validator needs
+      // extending. Remove this `console.warn` once the supported-families
+      // list is settled (post-BLG-0029 / S-013).
       // eslint-disable-next-line no-console
       console.warn(
         "[scanner] QR rejected — reason:",
         validation.reason,
-        "url:",
+        "data:",
         event.data
+      );
+      dispatch({ type: "QR_UNSUPPORTED" });
+      return;
+    }
+    if (!IMPLEMENTED_FAMILIES.has(validation.family)) {
+      // Recognised family (e.g. AADE / Epsilon / unknown_code) whose backend
+      // adapter has not landed yet (BLG-0027 / BLG-0028 / BLG-0029). Route
+      // to the standard unsupported_qr UX today; this branch is the only
+      // change the scanner needs once those adapters ship.
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[scanner] QR family not yet implemented:",
+        validation.family
       );
       dispatch({ type: "QR_UNSUPPORTED" });
       return;
