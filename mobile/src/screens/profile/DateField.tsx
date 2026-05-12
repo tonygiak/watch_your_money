@@ -33,7 +33,7 @@ export type DateFieldProps = {
 
 const DEFAULT_DATE = new Date();
 
-export default function DateField(props: DateFieldProps): JSX.Element {
+export default function DateField(props: DateFieldProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const editable = props.editable !== false;
 

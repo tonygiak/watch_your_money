@@ -14,6 +14,7 @@
  *   4. Re-run `make check`.
  */
 
+import type { CacheableReceipt } from "../cache/types";
 import { validateGrQrUrl } from "../parsers/gr";
 
 export type ParseResultOk = {
@@ -108,6 +109,49 @@ async function tryParseProblem(
     return await response.json();
   } catch {
     return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /receipts/{id} — fetch a single receipt with all line items
+// ---------------------------------------------------------------------------
+
+export type FetchReceiptResult =
+  | { kind: "ok"; receipt: CacheableReceipt }
+  | {
+      kind: "error";
+      status: 401 | 404 | "generic" | "network" | "timeout";
+    };
+
+export async function getReceiptById(args: {
+  receiptId: string;
+  bearerToken: string;
+  backendUrl: string;
+}): Promise<FetchReceiptResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(
+      `${args.backendUrl}/receipts/${args.receiptId}`,
+      {
+        headers: { Authorization: `Bearer ${args.bearerToken}` },
+        signal: controller.signal,
+      }
+    );
+    if (response.status === 200) {
+      const json = await response.json();
+      return { kind: "ok", receipt: json as CacheableReceipt };
+    }
+    if (response.status === 401) return { kind: "error", status: 401 };
+    if (response.status === 404) return { kind: "error", status: 404 };
+    return { kind: "error", status: "generic" };
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      return { kind: "error", status: "timeout" };
+    }
+    return { kind: "error", status: "network" };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

@@ -14,7 +14,7 @@ import { Text, View } from "react-native";
 
 import { t } from "../lib/i18n";
 
-export default function HomeScreen(): JSX.Element {
+export default function HomeScreen(): React.JSX.Element {
   return (
     <View>
       <Text>{t("home.title")}</Text>

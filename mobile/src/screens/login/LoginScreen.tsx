@@ -46,7 +46,7 @@ export type LoginScreenProps = {
   privacyPolicyUrl?: string;
 };
 
-export default function LoginScreen(props: LoginScreenProps): JSX.Element {
+export default function LoginScreen(props: LoginScreenProps): React.JSX.Element {
   const [state, dispatch] = useReducer(loginReducer, initialLoginState);
   const prevStatusRef = useRef(state.status);
   const supabase = useMemo(

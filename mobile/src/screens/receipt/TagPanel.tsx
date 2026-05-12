@@ -50,7 +50,7 @@ export type TagPanelProps = {
   isOffline?: boolean;
 };
 
-export default function TagPanel(props: TagPanelProps): JSX.Element {
+export default function TagPanel(props: TagPanelProps): React.JSX.Element {
   const [state, dispatch] = useReducer(
     tagReducer,
     {

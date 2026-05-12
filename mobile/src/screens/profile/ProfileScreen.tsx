@@ -67,7 +67,7 @@ export type ProfileScreenProps = {
   isOffline?: boolean;
 };
 
-export default function ProfileScreen(props: ProfileScreenProps): JSX.Element {
+export default function ProfileScreen(props: ProfileScreenProps): React.JSX.Element {
   const [state, dispatch] = useReducer(
     profileReducer,
     {

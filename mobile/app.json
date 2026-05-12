@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Watch Your Money",
+    "slug": "watch-your-money",
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "infoPlist": {
+        "NSCameraUsageDescription": "Χρειαζόμαστε πρόσβαση στην κάμερα για να σαρώσουμε το QR code του παραστατικού."
+      }
+    },
+    "android": {
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Χρειαζόμαστε πρόσβαση στην κάμερα για να σαρώσουμε το QR code του παραστατικού."
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}
