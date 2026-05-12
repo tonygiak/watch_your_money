@@ -56,6 +56,7 @@ export const STRINGS: Record<Locale, StringTable> = {
     "scanner.error.auth.title": "Η συνεδρία έληξε",
     "scanner.error.auth.body": "Παρακαλούμε συνδεθείτε ξανά για να συνεχίσετε.",
     "scanner.error.auth.action": "Σύνδεση",
+    "scanner.error.auth.refreshing": "Επαναφορά σύνδεσης…",
     "scanner.error.parse.title": "Δεν μπορούμε να διαβάσουμε αυτό το παραστατικό",
     "scanner.error.parse.body":
       "Βεβαιωθείτε ότι το QR ανήκει σε ελληνικό e-παραστατικό από έναν υποστηριζόμενο εκδότη.",
@@ -233,6 +234,7 @@ export const STRINGS: Record<Locale, StringTable> = {
     "scanner.error.auth.title": "Session expired",
     "scanner.error.auth.body": "Please sign in again to continue.",
     "scanner.error.auth.action": "Sign in",
+    "scanner.error.auth.refreshing": "Refreshing session…",
     "scanner.error.parse.title": "We can't read this receipt",
     "scanner.error.parse.body":
       "Make sure the QR belongs to a Greek e-receipt from a supported issuer.",

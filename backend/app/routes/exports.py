@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.auth import (
+    JWKSProvider,
     JwtMalformedError,
     VerifiedJwt,
     verify_supabase_jwt,
@@ -53,7 +54,14 @@ MAX_RANGE_DAYS = 366
 
 
 def get_jwt_secret() -> str:  # pragma: no cover - overridden in tests
-    return settings.supabase_jwt_secret
+    """Legacy HS256 secret per ADR-0015 §5 (DI handle name kept for tests)."""
+    return settings.supabase_jwt_legacy_hs256_secret
+
+
+def get_jwks_provider():  # pragma: no cover - overridden in tests
+    from app.services.jwks_provider import get_jwks_provider as _factory
+
+    return _factory()
 
 
 def get_business_expenses_repository() -> BusinessExpensesRepository:
@@ -81,14 +89,22 @@ AuthorizationHeader = Annotated[
 JwtSecret = Annotated[str, Depends(get_jwt_secret)]
 
 
+JwksProviderDep = Annotated[JWKSProvider | None, Depends(get_jwks_provider)]
+
+
 def require_authenticated_user(
     authorization: AuthorizationHeader = None,
     secret: JwtSecret = "",
+    jwks_provider: JwksProviderDep = None,
 ) -> VerifiedJwt:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise JwtMalformedError("missing Bearer token")
     token = authorization[len("Bearer ") :].strip()
-    return verify_supabase_jwt(token, secret)
+    return verify_supabase_jwt(
+        token,
+        jwks_provider=jwks_provider,
+        legacy_hs256_secret=secret or None,
+    )
 
 
 VerifiedJwtDep = Annotated[VerifiedJwt, Depends(require_authenticated_user)]

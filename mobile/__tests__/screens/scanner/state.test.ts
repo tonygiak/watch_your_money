@@ -103,10 +103,45 @@ describe("scannerReducer — DES-0001 transitions", () => {
       expect(s.receipt).toEqual({ receiptId: "abc", isDuplicate: true });
     });
 
-    it("→ auth_error on SUBMIT_401", () => {
+    it("→ auth_error_recoverable on FIRST SUBMIT_401 (BLG-0024)", () => {
       const s = step(getToSubmitting(), { type: "SUBMIT_401" });
-      expect(s.status).toBe("auth_error");
+      expect(s.status).toBe("auth_error_recoverable");
       expect(s.errorCode).toBe("auth");
+      expect(s.hasAttemptedAuthRefresh).toBe(false);
+    });
+
+    it("RETRY_AFTER_REFRESH returns to submitting and bumps the refresh flag", () => {
+      let s = step(getToSubmitting(), { type: "SUBMIT_401" });
+      expect(s.status).toBe("auth_error_recoverable");
+      s = step(s, { type: "RETRY_AFTER_REFRESH" });
+      expect(s.status).toBe("submitting");
+      expect(s.hasAttemptedAuthRefresh).toBe(true);
+      expect(s.qrUrl).toBe(QR);
+      expect(s.errorCode).toBeNull();
+    });
+
+    it("RETRY_AFTER_REFRESH is a no-op outside auth_error_recoverable", () => {
+      const s = step(getToSubmitting(), { type: "RETRY_AFTER_REFRESH" });
+      expect(s.status).toBe("submitting");
+      expect(s.hasAttemptedAuthRefresh).toBe(false);
+    });
+
+    it("SECOND SUBMIT_401 after refresh attempt → auth_error_terminal", () => {
+      // Walk the recovery path: 401 → recoverable → refresh → submit → 401.
+      let s = step(getToSubmitting(), { type: "SUBMIT_401" });
+      s = step(s, { type: "RETRY_AFTER_REFRESH" });
+      s = step(s, { type: "SUBMIT_401" });
+      expect(s.status).toBe("auth_error_terminal");
+      expect(s.errorCode).toBe("auth");
+      expect(s.hasAttemptedAuthRefresh).toBe(true);
+    });
+
+    it("success after silent refresh clears the refresh flag for the next scan", () => {
+      let s = step(getToSubmitting(), { type: "SUBMIT_401" });
+      s = step(s, { type: "RETRY_AFTER_REFRESH" });
+      s = step(s, { type: "SUBMIT_201_NEW", receiptId: "abc" });
+      expect(s.status).toBe("success_new");
+      expect(s.hasAttemptedAuthRefresh).toBe(false);
     });
 
     it("→ parse_error_user on SUBMIT_422", () => {
@@ -218,8 +253,11 @@ describe("telemetryEventFor — counts only, no PII", () => {
   });
 
   it("emits one submit_failure_<code> per error path", () => {
-    expect(telemetryEventFor("submitting", "auth_error")).toBe(
+    expect(telemetryEventFor("submitting", "auth_error_terminal")).toBe(
       "submit_failure_auth"
+    );
+    expect(telemetryEventFor("submitting", "auth_error_recoverable")).toBe(
+      "submit_auth_refresh_attempt"
     );
     expect(telemetryEventFor("submitting", "parse_error_user")).toBe(
       "submit_failure_parse_error"

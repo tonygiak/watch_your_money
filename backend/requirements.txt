@@ -25,3 +25,13 @@ tzdata==2024.2
 # review captured in ADR-0009 §Round 2 (co-signed by `agent-safety-officer`
 # + `engineering-manager`); PyPI already on the outbound allowlist.
 reportlab==4.2.5
+# cryptography: asymmetric JWT verification (ES256 / RS256) against the
+# Supabase JWKS endpoint per ADR-0015 (S-010). Replaces the HS256-only
+# verifier from ADR-0002 §1. One new runtime dep — `PyJWT` was explicitly
+# rejected in ADR-0015 Round 1 because it would have pulled `cryptography`
+# transitively anyway (one dep, not two; one CVE-track to monitor).
+# `agent-safety-officer` supply-chain review in ADR-0015 Round 1 (PyCA
+# upstream, CVE history checked, no new outbound host — JWKS lives under
+# `*.supabase.co` already on the allowlist). Exact pin so Railway / Render
+# builders never pick up a surprise upgrade on an auth-critical path.
+cryptography==45.0.1

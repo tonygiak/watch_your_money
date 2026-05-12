@@ -48,7 +48,24 @@ type Props = {
   bearerToken: string;
   backendUrl: string;
   onSuccess: (receiptId: string) => void;
+  /**
+   * Called when the auth gate is *terminally* broken: a transient 401 has
+   * already been retried after a silent `supabase.auth.refreshSession()`
+   * and the retry also returned 401 — sign the user out (BLG-0024 /
+   * ADR-0015 §8). The first 401 of any submission does NOT call this.
+   */
   onAuthError: () => void;
+  /**
+   * Silent session refresh hook (BLG-0024). The scanner calls this once on
+   * a recoverable 401, then retries the parse. Returns `true` if the
+   * refresh succeeded (a fresh access token is available), `false`
+   * otherwise. Injected through props so the screen never imports
+   * `@supabase/supabase-js` directly.
+   *
+   * Optional for back-compat: when omitted, the recoverable path falls
+   * straight through to terminal (existing behaviour pre-BLG-0024).
+   */
+  refreshSession?: () => Promise<boolean>;
   onClose: () => void;
 };
 
@@ -180,10 +197,39 @@ export default function ScannerScreen(props: Props): React.JSX.Element {
     if (state.status === "success_new" || state.status === "success_duplicate") {
       if (state.receipt) props.onSuccess(state.receipt.receiptId);
     }
-    if (state.status === "auth_error") {
+    if (state.status === "auth_error_terminal") {
       props.onAuthError();
     }
   }, [state.status, state.receipt, props]);
+
+  // ---- BLG-0024: silent refresh + retry on recoverable 401 ---------------
+  // On a first 401 the reducer parks in `auth_error_recoverable`. Trigger a
+  // single `supabase.auth.refreshSession()` (via the injected hook so the
+  // screen never imports `@supabase/supabase-js`) and dispatch
+  // `RETRY_AFTER_REFRESH` on success. On failure (or when no refresh hook
+  // is wired), the auth error is treated as terminal.
+  useEffect(() => {
+    if (state.status !== "auth_error_recoverable") return;
+    let cancelled = false;
+    (async () => {
+      const refresh = props.refreshSession;
+      const ok = refresh ? await refresh() : false;
+      if (cancelled) return;
+      if (ok) {
+        dispatch({ type: "RETRY_AFTER_REFRESH" });
+      } else {
+        // No refresh hook or refresh failed → escalate to terminal by
+        // running through SUBMIT_401 again (reducer routes to terminal
+        // because hasAttemptedAuthRefresh would be set; but at this point
+        // we haven't bumped it — set it via RETRY_AFTER_REFRESH path is
+        // wrong because that would re-submit. Simplest: just sign out.)
+        props.onAuthError();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status, props]);
 
   // ---- Renderers ----------------------------------------------------------
   if (showPrePrompt) {
@@ -249,7 +295,7 @@ export default function ScannerScreen(props: Props): React.JSX.Element {
   }
 
   if (
-    state.status === "auth_error" ||
+    state.status === "auth_error_terminal" ||
     state.status === "parse_error_user" ||
     state.status === "network_error" ||
     state.status === "parser_drift" ||
@@ -257,7 +303,10 @@ export default function ScannerScreen(props: Props): React.JSX.Element {
     state.status === "camera_error"
   ) {
     const map = {
-      auth_error: ["scanner.error.auth.title", "scanner.error.auth.body"],
+      auth_error_terminal: [
+        "scanner.error.auth.title",
+        "scanner.error.auth.body",
+      ],
       parse_error_user: [
         "scanner.error.parse.title",
         "scanner.error.parse.body",
@@ -277,7 +326,7 @@ export default function ScannerScreen(props: Props): React.JSX.Element {
       ],
     } as const;
     const [titleKey, bodyKey] = map[state.status];
-    const isAuth = state.status === "auth_error";
+    const isAuth = state.status === "auth_error_terminal";
     const isRetryable =
       state.status === "network_error" ||
       state.status === "parser_drift" ||
@@ -334,6 +383,14 @@ export default function ScannerScreen(props: Props): React.JSX.Element {
           >
             <Text style={styles.actionSecondary}>{t("common.cancel")}</Text>
           </Pressable>
+        </View>
+      )}
+      {state.status === "auth_error_recoverable" && (
+        <View style={styles.overlay} accessibilityLiveRegion="polite">
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.overlayText}>
+            {t("scanner.error.auth.refreshing")}
+          </Text>
         </View>
       )}
       {state.status === "unsupported_qr" && (

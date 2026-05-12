@@ -186,6 +186,36 @@ export default function App(): React.JSX.Element {
     setAppState("unauthenticated");
   }, []);
 
+  /**
+   * Silent session refresh (BLG-0024 / ADR-0015 §8). The scanner (and any
+   * other screen that hits the backend) calls this on a recoverable 401,
+   * before falling through to `handleAuthError`. Returns `true` when a
+   * fresh access token is available; otherwise `false` and the caller is
+   * expected to sign the user out.
+   *
+   * Token / refresh-token / phone never logged
+   * (agent-runtime-security.md §3 + ADR-0004 §5 + ADR-0016).
+   */
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    const supabase = getSupabaseClient(supabaseConfig.current);
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error || !data.session) return false;
+      setSession((prev) => ({
+        accessToken: data.session!.access_token,
+        userId: data.session!.user.id,
+        phone: data.session!.user.phone ?? null,
+        isFreelancer: prev?.isFreelancer ?? false,
+        afm: prev?.afm ?? null,
+        lastSignInAt:
+          data.session!.user.last_sign_in_at ?? prev?.lastSignInAt ?? null,
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // ---- Loading ------------------------------------------------------------
   if (appState === "loading") {
     return (
@@ -261,6 +291,7 @@ export default function App(): React.JSX.Element {
             backendUrl={BACKEND_URL}
             onSuccess={(id) => void handleScanSuccess(id)}
             onAuthError={handleAuthError}
+            refreshSession={refreshSession}
             onClose={() => setActiveTab("home")}
           />
         </SafeAreaView>

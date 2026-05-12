@@ -2,6 +2,8 @@
 
 Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `docs/templates/backlog-item.md`. When an item completes, **move** (don't duplicate) it into `docs/done.md`.
 
+> S-011 (`auth-modernization-and-jwt-header-logging-contract`) closed 2026-05-12: **implementation sprint, BLG-0023 + BLG-0024 + BLG-0025 all shipped** in one PR per the ADR-0015 §8 + ADR-0016 §3 hard-ordering constraint. The asymmetric Supabase JWT verifier is live (`cryptography==45.0.1`; ES256 + RS256 + HS256-transitional; JWKS cache 600 s / 60 s refetch-floor; the full algorithm allowlist + cross-check matrix). The mobile scanner now silently refreshes the session once on a recoverable 401 before signing the user out. `make check`: **389 tests across 21+ suites — green** (346 → 389, +43). Two new runbooks (`rotate-supabase-jwt-signing-keys`, `rollback-to-hs256-only`). Four Ready items carry to S-012 (BLG-0030 + BLG-0027 + BLG-0028 + BLG-0032 — all gated on consented fixtures or on each other). BLG-0034 (HS256 retirement) stays planned until BLG-0023 has run in production for one release cycle. See `docs/done.md` Sprint S-011 entry.
+>
 > S-010 (`receipt-format-scope-and-auth-modernization`) closed 2026-05-12: **discovery sprint, three ADRs accepted (ADR-0014 / ADR-0015 / ADR-0016) + DES-0006**. Resolves both drift findings from the 2026-05-12 live on-device run. BLG-0026 (umbrella) moves to done. BLG-0023 / BLG-0024 / BLG-0025 lift from `drift` to **Ready**. Five new Ready / planned BLGs spawned (BLG-0027 AADE adapter, BLG-0028 Epsilon Net adapter, BLG-0029 Family C identification, BLG-0030 AADE HTML-shape spike, BLG-0032 mobile QR-validator mirror). Post-MVP follow-ups added (BLG-0033 cross-source dedup, BLG-0034 HS256 retirement). Two new outbound hosts on the allowlist (`www1.aade.gr`, `epsilondigital-3rdpartc.epsilonnet.gr`) scoped to parser + spike fetches per §5.8.1. `make check` unchanged from S-009 close (346 tests). See `docs/done.md` Sprint S-010 entry.
 >
 > S-009 (`sdk-upgrade-and-on-device-acceptance-v2`) closed 2026-05-09: **BLG-0016 + BLG-0020 + BLG-0021 all done** — the three-sprint Expo SDK 51 → 54 upgrade landed. ADR-0013 §3 pre-flight checklist executed: Step 3 TLS smoke test failed even on Node v22.22.0; Step 3a (Windows CA bundle export to `~/ca-bundle.pem` + `NODE_EXTRA_CA_CERTS`) passed the retry on the first try. SDK 54 install ran cleanly, `expo-doctor` reports 17/17 checks passed, `make check` green: 143 backend + 203 mobile = 346 tests across 21+ suites. ADR-0012 §1 (EAS dev client rejection) remains in force — Option A was sufficient. Both ADR-0012 §3 deviations (`@react-native-community/netinfo`, `typescript`) closed. The §2.8 MVP bullets 4 + 9 are now reachable on stock Expo Go via `S-009-UREV-0001`. See `docs/done.md` Sprint S-009 entry.
@@ -108,6 +110,9 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 <!-- BLG-0022 shipped in S-008 — see `docs/done.md` Sprint S-008 entry. ADR-0013 accepted. -->
 <!-- BLG-0016 shipped in S-009 — see `docs/done.md` Sprint S-009 entry. The full Expo SDK 51 → 54 upgrade landed per ADR-0013 §3. -->
 
+<!-- BLG-0023, BLG-0024, BLG-0025 all shipped in S-011 — see `docs/done.md` Sprint S-011 entry. -->
+
+<!--
 - ID: BLG-0023
   Title: Verify Supabase asymmetric JWT signing keys (ES256 / JWKS) on the backend
   Status: planned
@@ -152,6 +157,7 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
   Size: S
   Impact-notes: { external-surface: no (still hits the existing backend + Supabase); rls: no; localization: yes (one new string per locale) }
   Links: [mobile/src/screens/ScannerScreen.tsx, mobile/src/screens/scanner/state.ts, App.tsx, docs/adr/S-001-ADR-0004-Auth-otp.md]
+-->
 
 <!-- BLG-0026 shipped in S-010 — see `docs/done.md` Sprint S-010 entry. ADR-0014 produced. Spawned BLG-0027 + BLG-0028 + BLG-0029 + BLG-0030 + BLG-0032 + BLG-0033. -->
 
@@ -296,6 +302,7 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
   Impact-notes: { external-surface: no; rls: no; localization: no }
   Links: [docs/adr/S-010-ADR-0015-Asymmetric-jwt-verification.md, BLG-0023]
 
+<!--
 - ID: BLG-0025
   Title: Formalize the JWT-rejection diagnostic log line + ADR-0002 §6 amendment
   Status: planned
@@ -315,3 +322,4 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
   Size: XS
   Impact-notes: { external-surface: no; rls: no; localization: no }
   Links: [backend/app/routes/receipts.py, backend/app/auth.py, docs/adr/S-001-ADR-0002-Auth-and-parse-endpoint.md]
+-->
