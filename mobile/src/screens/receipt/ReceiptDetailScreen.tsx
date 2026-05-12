@@ -33,7 +33,7 @@ export type ReceiptDetailScreenProps = {
 
 export default function ReceiptDetailScreen(
   props: ReceiptDetailScreenProps
-): JSX.Element {
+): React.JSX.Element {
   const { receipt } = props;
   const [toastKey, setToastKey] = useState<string | null>(null);
 
@@ -130,7 +130,7 @@ function TotalRow(props: {
   label: string;
   value: string;
   emphasized?: boolean;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <View style={styles.totalRow}>
       <Text style={[styles.totalLabel, props.emphasized && styles.totalEmphasized]}>

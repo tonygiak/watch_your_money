@@ -59,12 +59,16 @@ export async function sendOtp(
   try {
     const { error } = await supabase.auth.signInWithOtp({ phone });
     if (!error) return { kind: "ok" };
+    // eslint-disable-next-line no-console
+    console.warn("[auth.sendOtp]", error.message);
     if (isRateLimitError(error.message)) {
       return { kind: "rate_limited", retryAfterSeconds: 30 };
     }
     if (isNetworkError(error.message)) return { kind: "network" };
     return { kind: "error" };
   } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("[auth.sendOtp] threw:", err);
     if (isNetworkError(messageOf(err))) return { kind: "network" };
     return { kind: "error" };
   }

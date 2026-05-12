@@ -10,7 +10,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "jsx": "react-native",
-    "moduleResolution": "node",
     "types": ["jest", "node"]
   },
   "include": [

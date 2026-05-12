@@ -4,6 +4,15 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load `backend/.env` if present. `override=False` means real environment
+# variables (e.g. those set by Railway / Render in production) always win
+# over the file. Per `agent-runtime-security.md`, secrets only live in env.
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_BACKEND_ROOT / ".env", override=False)
 
 
 @dataclass(frozen=True)

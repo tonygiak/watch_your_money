@@ -52,7 +52,7 @@ type Props = {
   onClose: () => void;
 };
 
-export default function ScannerScreen(props: Props): JSX.Element {
+export default function ScannerScreen(props: Props): React.JSX.Element {
   const [state, dispatch] = useReducer(scannerReducer, initialScannerState);
   const prevStatusRef = useRef(state.status);
   const submitAbortRef = useRef<AbortController | null>(null);
@@ -67,6 +67,14 @@ export default function ScannerScreen(props: Props): JSX.Element {
       // e.g. telemetry.increment(event)
     }
     prevStatusRef.current = state.status;
+  }, [state.status]);
+
+  // ---- Open from tab: equivalent to FAB_PRESSED on the original DES-0001
+  // entry point. Kicks the reducer from `idle` → `permission_check`.
+  useEffect(() => {
+    if (state.status === "idle") {
+      dispatch({ type: "FAB_PRESSED" });
+    }
   }, [state.status]);
 
   // ---- Permission flow ----------------------------------------------------
@@ -101,6 +109,16 @@ export default function ScannerScreen(props: Props): JSX.Element {
     if (state.status !== "scanning") return;
     const validation = validateGrQrUrl(event.data);
     if (!validation.ok) {
+      // DEV-ONLY diagnostic: print the rejected URL so we can decide whether
+      // the receipt is genuinely unsupported or the validator needs extending.
+      // Remove this `console.warn` once the supported-providers list is settled.
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[scanner] QR rejected — reason:",
+        validation.reason,
+        "url:",
+        event.data
+      );
       dispatch({ type: "QR_UNSUPPORTED" });
       return;
     }
@@ -346,7 +364,7 @@ function ErrorModal(props: {
   actionLabel: string;
   onAction: () => void;
   onClose: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <Modal transparent animationType="fade">
       <View style={styles.modalRoot}>
@@ -367,7 +385,7 @@ function ErrorModal(props: {
   );
 }
 
-function Toast(props: { message: string; onDismiss: () => void }): JSX.Element {
+function Toast(props: { message: string; onDismiss: () => void }): React.JSX.Element {
   useEffect(() => {
     const id = setTimeout(props.onDismiss, 3000);
     return () => clearTimeout(id);

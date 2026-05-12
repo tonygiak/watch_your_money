@@ -48,7 +48,7 @@ const PERIODS: InsightsPeriod[] = ["week", "month", "year"];
 
 export default function InsightsScreen(
   props: InsightsScreenProps
-): JSX.Element {
+): React.JSX.Element {
   const [state, dispatch] = useReducer(insightsReducer, initialInsightsState);
   const prevRef = useRef<InsightsState>(state);
 

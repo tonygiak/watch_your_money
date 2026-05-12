@@ -52,7 +52,7 @@ export const STRINGS: Record<Locale, StringTable> = {
     "scanner.success.duplicate": "Έχετε ήδη σαρώσει αυτό το παραστατικό.",
 
     "scanner.error.unsupported.toast":
-      "Αυτός ο κωδικός QR δεν είναι ελληνικό e-παραστατικό.",
+      "Αυτός ο πάροχος δεν υποστηρίζεται ακόμα.",
     "scanner.error.auth.title": "Η συνεδρία έληξε",
     "scanner.error.auth.body": "Παρακαλούμε συνδεθείτε ξανά για να συνεχίσετε.",
     "scanner.error.auth.action": "Σύνδεση",
@@ -229,7 +229,7 @@ export const STRINGS: Record<Locale, StringTable> = {
     "scanner.success.new": "Receipt saved.",
     "scanner.success.duplicate": "You already scanned this receipt.",
 
-    "scanner.error.unsupported.toast": "This QR is not a Greek e-receipt.",
+    "scanner.error.unsupported.toast": "This provider isn't supported yet.",
     "scanner.error.auth.title": "Session expired",
     "scanner.error.auth.body": "Please sign in again to continue.",
     "scanner.error.auth.action": "Sign in",
