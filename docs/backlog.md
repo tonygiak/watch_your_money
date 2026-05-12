@@ -2,6 +2,8 @@
 
 Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `docs/templates/backlog-item.md`. When an item completes, **move** (don't duplicate) it into `docs/done.md`.
 
+> S-010 (`receipt-format-scope-and-auth-modernization`) closed 2026-05-12: **discovery sprint, three ADRs accepted (ADR-0014 / ADR-0015 / ADR-0016) + DES-0006**. Resolves both drift findings from the 2026-05-12 live on-device run. BLG-0026 (umbrella) moves to done. BLG-0023 / BLG-0024 / BLG-0025 lift from `drift` to **Ready**. Five new Ready / planned BLGs spawned (BLG-0027 AADE adapter, BLG-0028 Epsilon Net adapter, BLG-0029 Family C identification, BLG-0030 AADE HTML-shape spike, BLG-0032 mobile QR-validator mirror). Post-MVP follow-ups added (BLG-0033 cross-source dedup, BLG-0034 HS256 retirement). Two new outbound hosts on the allowlist (`www1.aade.gr`, `epsilondigital-3rdpartc.epsilonnet.gr`) scoped to parser + spike fetches per §5.8.1. `make check` unchanged from S-009 close (346 tests). See `docs/done.md` Sprint S-010 entry.
+>
 > S-009 (`sdk-upgrade-and-on-device-acceptance-v2`) closed 2026-05-09: **BLG-0016 + BLG-0020 + BLG-0021 all done** — the three-sprint Expo SDK 51 → 54 upgrade landed. ADR-0013 §3 pre-flight checklist executed: Step 3 TLS smoke test failed even on Node v22.22.0; Step 3a (Windows CA bundle export to `~/ca-bundle.pem` + `NODE_EXTRA_CA_CERTS`) passed the retry on the first try. SDK 54 install ran cleanly, `expo-doctor` reports 17/17 checks passed, `make check` green: 143 backend + 203 mobile = 346 tests across 21+ suites. ADR-0012 §1 (EAS dev client rejection) remains in force — Option A was sufficient. Both ADR-0012 §3 deviations (`@react-native-community/netinfo`, `typescript`) closed. The §2.8 MVP bullets 4 + 9 are now reachable on stock Expo Go via `S-009-UREV-0001`. See `docs/done.md` Sprint S-009 entry.
 
 ---
@@ -108,8 +110,8 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 
 - ID: BLG-0023
   Title: Verify Supabase asymmetric JWT signing keys (ES256 / JWKS) on the backend
-  Status: drift
-  Ready: no (discovery-sprint decision per `AGENTS.md` §4.1.1 + §4.11)
+  Status: planned
+  Ready: yes (ADR-0015 accepted in S-010 — implementation contract locked)
   Owner: architect (with security-privacy-officer + agent-safety-officer + engineering-manager + backend-builder)
   Type: security
   Outcome: The backend continues to authenticate users after Supabase rotates a project to the new **JWT Signing Keys** system (ECC P-256 / ES256, RSA / RS256). Today the hand-rolled HS256-only verifier in `backend/app/auth.py` rejects every ES256 token with `jwt_malformed: unsupported alg: 'ES256'` → `POST /receipts/parse` returns 401 → the mobile scanner promotes that to a hard sign-out, breaking §2.8 MVP bullets 4 and 6–9. Discovered live on 2026-05-12 against the project whose legacy HS256 key was auto-rotated by Supabase 6 days earlier; mitigated short-term by reverting the project to a Legacy-HS256 signing key via "Create Standby Key" + promote (Option A). This BLG is the long-term, platform-aligned fix (Option B).
@@ -132,8 +134,8 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 
 - ID: BLG-0024
   Title: Soft auth-error handling on the scanner — silent refresh + retry before sign-out
-  Status: drift
-  Ready: no (couples to BLG-0023; landed together or right after)
+  Status: planned
+  Ready: yes (ADR-0015 accepted in S-010; couples to BLG-0023, lands together or right after)
   Owner: mobile-builder (with security-privacy-officer + product-designer)
   Type: product
   Outcome: A transient 401 from `POST /receipts/parse` no longer hard-signs-out the user. Today `mobile/src/screens/ScannerScreen.tsx` routes `SUBMIT_401` → `auth_error` state → `props.onAuthError()` → `App.tsx#handleAuthError` → `setAppState("unauthenticated")`. That's the right reaction when the Supabase session is genuinely invalid, but it's an over-reaction when the cause is a backend misconfig (BLG-0023) or a JWKS-cache miss. After this change, the first 401 triggers a silent `supabase.auth.refreshSession()` and a single retry of the parse; only a *second* consecutive 401 sign-outs the user.
@@ -151,35 +153,153 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
   Impact-notes: { external-surface: no (still hits the existing backend + Supabase); rls: no; localization: yes (one new string per locale) }
   Links: [mobile/src/screens/ScannerScreen.tsx, mobile/src/screens/scanner/state.ts, App.tsx, docs/adr/S-001-ADR-0004-Auth-otp.md]
 
-- ID: BLG-0026
-  Title: Receipt-format scope expansion — AADE tameiakí signature URLs, Epsilon Net provider URLs, and non-URL QR codes (S-010 discovery theme)
-  Status: drift
-  Ready: no (S-010 discovery — `AGENTS.md` §4.1.1)
-  Owner: orchestrator (chair) — product-owner + product-manager + architect + parser-specialist + data-architect + security-privacy-officer + agent-safety-officer + localization-specialist
-  Type: product
-  Outcome: A clear, ADR-recorded decision on what counts as a "Greek receipt" for this app, based on the **real receipt diversity Greek consumers carry** (not the synthetic "Entersoft or SoftOne via e-invoicing.gr" scope inherited into §2.8 from S-001 / S-002). Discovered on 2026-05-12 during the first real-device acceptance run after the SDK 54 unblock (S-009): of the receipts the test user scanned, **0 were `e-invoicing.gr` viewer URLs**. Three distinct QR families appeared, none currently supported by `mobile/src/parsers/gr.ts` or `backend/app/parsers/gr/`:
-    - **Family A — AADE tameiakí signature URL**: `https://www1.aade.gr/tameiakes/myweb/q1.php?SIG=<hex>` (the official AADE "Σύστημα Σήμανσης" per-receipt signature endpoint, printed by every certified Greek cash register). 8 receipts, most common.
-    - **Family B — Epsilon Net fiscal-doc viewer**: `https://epsilondigital-3rdpartc.epsilonnet.gr/fd/<hash>:<n>` (Epsilon Net is a Greek tax-tech provider on the same tier as Entersoft / SoftOne but hosts the viewer on their own domain). 1 receipt.
-    - **Family C — non-URL hex code**: e.g. `45C07BD642067E5` (15 hex chars, possibly a MARK / fiscal signature / verification code; thermal printer may emit the code without a viewer URL). 5 scans of the same physical receipt — needs identification.
+<!-- BLG-0026 shipped in S-010 — see `docs/done.md` Sprint S-010 entry. ADR-0014 produced. Spawned BLG-0027 + BLG-0028 + BLG-0029 + BLG-0030 + BLG-0032 + BLG-0033. -->
+
+- ID: BLG-0027
+  Title: AADE tameiakí signature URL adapter (Family A) — `backend/app/parsers/gr/aade/`
+  Status: planned
+  Ready: yes (gated on BLG-0030 outcome — if SKU-level reachable, full-SKU adapter; if only merchant + total + date, limited-info adapter)
+  Owner: parser-specialist (with security-privacy-officer + product-designer + localization-specialist)
+  Type: parser
+  Outcome: Users can scan the AADE "Σύστημα Σήμανσης" per-receipt signature URL (`https://www1.aade.gr/tameiakes/myweb/q1.php?SIG=<hex>`) and see the receipt — with SKU-level data if AADE's response carries it, or with merchant + total + date + a clearly-worded "Less detail" banner if it doesn't. §2.8 bullet 3 (amended in ADR-0014 §6) is met for the dominant Greek consumer-receipt format.
   Acceptance:
-  - ADR under `docs/adr/S-010-ADR-<NNNN>-Receipt-format-scope.md` records the multi-round debate per §4.4 and decides, **for each family A / B / C**: (1) is it in scope for the MVP §2.8 bullet 3, (2) does the chosen integration path (HTML scrape vs myDATA vs ignore) preserve §2.2 SKU-level data, (3) does it require user TIN credentials (new auth surface) or just a QR scan, (4) does it require an additional outbound host (allowlist update by `agent-safety-officer`).
-  - §2.8 MVP definition-of-done is amended (or explicitly held) based on the decision. §2.9 out-of-scope list is refreshed accordingly.
-  - §5.9 country-agnostic plan is re-examined: each family is a *Greek* adapter (still `country_code='GR'`), so §5.9's "Greek e-invoicing.gr parser is one implementation" sentence is **already correct in shape** but needs to be plural in fact — `backend/app/parsers/gr/` becomes a registry of adapters per QR family, not one adapter.
-  - Per-family Ready BLGs emerge from the sprint (e.g. BLG-0027 AADE adapter, BLG-0028 Epsilon Net adapter, BLG-0029 non-URL-code identification + adapter). Each Ready BLG carries: outcome, acceptance criteria QA can turn into tests, fixture acquisition plan with consent (§5.8.1), localization impact, RLS impact (none — same `(user_id, mark)` upsert), and the country-agnostic-schema impact (likely none — `country_code='GR'` for all three; the diversity is below the schema line).
-  - **Critical product question answered in the ADR**: does scanning an AADE `q1.php?SIG=...` URL actually deliver §2.2 SKU-level data? If not (the verification page typically returns merchant + date + signature + totals only), the ADR must state explicitly whether the MVP value proposition holds for AADE-only receipts, and what the alternative integration path looks like (myDATA B2C with user TIN — new auth flow; or merchant-portal scrape — fragmented per merchant; or accept reduced data for these receipts and surface "limited info" in the UI).
-  - Auth-fix verification: while we're scoping S-010, confirm in a short DES note whether Option A (the live HS256-rollback executed in this debugging session) is sufficient or whether BLG-0023 needs to land first. Easiest path: one e-invoicing.gr round-trip from a curl test or the `gr-001-supermarket` synthetic URL against the running backend.
-  - No production code is shipped in S-010 (§4.1.1 — discovery sprints don't ship). Spikes under `docs/spikes/` are allowed for HTML-shape investigation against AADE / Epsilon Net pages.
-  - Sprint bundle complete per §4.1.5: PLN, LOG, REV, UREV.
-  Design: A new DES per family if user-facing UX changes (e.g. AADE "limited info" banner).
-  Approach: Cross-reference ADR-0001 (pluggable parser interface — its premise is exactly this kind of expansion). Likely the parser-registry abstraction already extends cleanly to per-family adapters within `gr/`; the work is product scope + fixture acquisition + HTML-shape investigation, not architecture rework. Acquisition is the gating risk: AADE and Epsilon Net responses must be captured with consent under §5.8.1, never sent to an LLM/MCP.
-  Size: M (discovery) → unknown per family (sized at sprint close)
-  Impact-notes: { external-surface: NEW outbound hosts `www1.aade.gr` (Family A) and `epsilondigital-3rdpartc.epsilonnet.gr` (Family B) — both REQUIRE allowlist update by `agent-safety-officer` before any spike fetches; rls: no change; localization: yes (per-family error copy + possibly "limited info" UX copy); country-code: still `GR` for all three }
-  Links: [docs/adr/S-001-ADR-0001-Parser-interface.md, docs/adr/S-001-ADR-0002-Auth-and-parse-endpoint.md, mobile/src/parsers/gr.ts, backend/app/parsers/gr/, AGENTS.md §2.8, AGENTS.md §5.9]
+  - `backend/app/parsers/gr/aade/parser.py` implements `GrAadeTameiakiParser(BaseReceiptParser)` per ADR-0001 §1: `country_code="GR"`, `can_parse(url)` matches `https://www1.aade.gr/tameiakes/myweb/q1.php?SIG=<hex>$`, `parse(url)` fetches + parses, `parse_html(html)` is the pure-bytes path.
+  - **AADE ToS / robots.txt review documented in this BLG's PR** (per ADR-0014 §4 security-privacy-officer precondition). If AADE forbids automated fetches: narrow this BLG to "parse the QR string in-app only; store the SIG hex as `mark`; `is_limited_info=true` always; merchant remains `'Άγνωστος έμπορος'` until a future feature lets the user attach a name."
+  - **Polite-fetch contract** (if production fetches are allowed): max 1 req/s per user, no parallelism per session, `User-Agent: WatchYourMoney/<version> (+contact-url)`, 10s timeout matching the e-invoicing.gr adapter.
+  - Schema migration `db/migrations/00NN_receipts_is_limited_info.sql` adds `is_limited_info boolean not null default false` per ADR-0014 §2. RLS untouched.
+  - `_to_response` in `backend/app/routes/receipts.py` extends `ReceiptResponse` with `is_limited_info: bool`.
+  - Mobile DES (BLG-0027-DES) covers the receipt-detail screen variant when `is_limited_info=true`: line-items section replaced with an informational card carrying `receipt.limited_info.banner` + `receipt.limited_info.tooltip` per ADR-0014 §5. List screen and Insights unchanged.
+  - Greek + English strings shipped: `receipt.limited_info.banner` + `receipt.limited_info.tooltip` per ADR-0014 §5.
+  - Parser registry `_REGISTERED` in `backend/app/parsers/registry.py` grows by one entry.
+  - `(user_id, mark)` uniqueness preserved — AADE's SIG hex serves as `mark`.
+  - Fixture triplet committed under `backend/tests/fixtures/receipts/gr-aade-001/` (consented per §5.8.1; provenance.md includes ToS-review summary).
+  - Parser tests cover: full-SKU response (if BLG-0030 confirms reachable), limited-info response (`items=[]`, `is_limited_info=true` does NOT raise `EmptyReceiptError`), drift detection.
+  - `agent-safety-officer` + `security-privacy-officer` co-sign in the PR per §4.11.
+  - `make check` green.
+  Design: BLG-0027-DES under `docs/sprints/S-011-.../` once S-011 opens.
+  Approach: Land after BLG-0030 spike. Effort: M (parser + DES + UI variant + migration + Greek strings + tests).
+  Size: M
+  Impact-notes: { external-surface: `www1.aade.gr` (allowlisted in S-010); rls: no; localization: yes (banner + tooltip); country-code: GR; schema-change: yes (`is_limited_info` column) }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, BLG-0030]
+
+- ID: BLG-0028
+  Title: Epsilon Net adapter (Family B) — `backend/app/parsers/gr/epsilon/`
+  Status: planned
+  Ready: yes (gated on consented Epsilon Net fixture)
+  Owner: parser-specialist (with agent-safety-officer)
+  Type: parser
+  Outcome: Users can scan an Epsilon Net fiscal-doc QR (`https://epsilondigital-3rdpartc.epsilonnet.gr/fd/<hash>:<n>`) and see the full SKU-level receipt — same tier of completeness as Entersoft / SoftOne via `e-invoicing.gr` today.
+  Acceptance:
+  - `backend/app/parsers/gr/epsilon/parser.py` implements `GrEpsilonNetParser(BaseReceiptParser)` per ADR-0001 §1. `can_parse` matches the Epsilon URL shape; `parse` validates the origin before the HTTP call (per ADR-0001 §1); `parse_html` is pure-bytes.
+  - Polite-fetch contract: same defaults as BLG-0027 (1 req/s, identifying `User-Agent`, 10s timeout).
+  - Parser extracts every §5.3.3 field expected from a full-SKU viewer (merchant + AFM + address + ΔΟΥ + document number + MARK + UID + authentication code + issue date + transmission timestamp + payment method + provider + all line items + all totals). `is_limited_info=false`.
+  - Fixture triplet committed under `backend/tests/fixtures/receipts/gr-epsilon-001/` (consented per §5.8.1).
+  - Parser tests cover: success case, drift, empty receipt.
+  - `(user_id, mark)` uniqueness preserved — Epsilon's `<hash>:<n>` URL tail serves as `mark`.
+  - Parser registry `_REGISTERED` grows by one entry.
+  - `agent-safety-officer` co-sign on the polite-fetch contract.
+  - `make check` green.
+  Design: N/A (same UX path as the existing GR adapter).
+  Approach: Inline micro-spike (since the file count is small, the spike + adapter ship in one PR). Effort: M.
+  Size: M
+  Impact-notes: { external-surface: `epsilondigital-3rdpartc.epsilonnet.gr` (allowlisted in S-010); rls: no; localization: no (existing strings); country-code: GR }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md]
+
+- ID: BLG-0029
+  Title: Family C identification spike — what system emits a 15-hex-char QR with no URL prefix?
+  Status: planned
+  Ready: no (gated on project-owner photo of the printed receipt + system name)
+  Owner: parser-specialist (with product-owner)
+  Type: parser
+  Outcome: We know what fiscal / verification system emits 15-hex-char codes like `45C07BD642067E5` so we can decide whether to ship an adapter for them (or to formally classify them out of MVP scope under §2.9).
+  Acceptance:
+  - Spike artifact under `docs/spikes/gr-family-c-identification/` with: project-owner-provided photo of the printed receipt (consented per §5.8.1), photo of the QR area, photo of the printed text near the QR, identification of the printing system / cash register manufacturer, and a one-paragraph product recommendation: ship adapter / defer / explicit out-of-scope.
+  - If "ship adapter": opens a new Ready BLG (e.g. BLG-0035) per the adapter pattern.
+  - If "defer" or "out-of-scope": `AGENTS.md` §2.9 amended; this BLG closes.
+  Design: N/A.
+  Approach: Ask project owner first; then ~1h identification work.
+  Size: XS
+  Impact-notes: { external-surface: unknown until identified; rls: no; localization: TBD; country-code: presumed GR }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md]
+
+- ID: BLG-0030
+  Title: AADE HTML-shape spike — determine SKU-level data ceiling on `q1.php?SIG=<hex>`
+  Status: planned
+  Ready: yes (gated on one consented AADE receipt under §5.8.1)
+  Owner: parser-specialist (with security-privacy-officer + agent-safety-officer)
+  Type: parser
+  Outcome: We know whether `www1.aade.gr/tameiakes/myweb/q1.php?SIG=...` returns SKU-level data (line items) or only merchant + AFM + total + date + signature. The spike's outcome decides whether BLG-0027 ships a full-SKU adapter or a limited-info adapter.
+  Acceptance:
+  - Spike artifact under `docs/spikes/gr-aade-html-shape/` with: one consented AADE receipt's `raw.html` (per §5.8.1; provenance.md records consent + redactions), a documented field map showing which §5.3.3 fields are present in the response and which are absent, a documented decision "AADE adapter is full-SKU" or "AADE adapter is limited-info" with reasoning.
+  - **AADE ToS / robots.txt review attached** (per ADR-0014 §4): if AADE forbids automated fetches, BLG-0027 narrows to "parse-the-QR-string-only mode."
+  - No fetch happens until §5.8.1 consent is recorded.
+  - Resulting recommendation is the input to BLG-0027 acceptance.
+  Design: N/A.
+  Approach: One consented fetch + manual HTML inspection.
+  Size: XS-S
+  Impact-notes: { external-surface: `www1.aade.gr` (allowlisted in S-010 — first actual fetch happens in this BLG under §5.8.1 consent); rls: no; localization: no; country-code: GR }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, BLG-0027]
+
+- ID: BLG-0032
+  Title: Mobile `validateGrQrCode` — discriminated-union mirror for the three GR QR families
+  Status: planned
+  Ready: yes (couples to BLG-0027 + BLG-0028)
+  Owner: mobile-builder (with parser-specialist)
+  Type: product
+  Outcome: The on-device QR validator (`mobile/src/parsers/gr.ts`) recognizes all three GR families with a discriminated-union return type so the scanner knows whether to send the value as-is (Family A / B URLs) or as a freeform code (Family C, when it arrives). Defense-in-depth mirror per ADR-0003 §3.
+  Acceptance:
+  - `mobile/src/parsers/gr.ts` exposes `validateGrQrCode(input: string) => { ok: true; family: "einvoicing" | "aade" | "epsilon" | "unknown_code"; ... } | { ok: false; reason: ... }`. Existing `validateGrQrUrl` stays as a delegate for backwards compatibility.
+  - Regex patterns mirror the backend `can_parse` shape exactly for each family — same defense-in-depth contract as ADR-0003 §3.
+  - Reducer tests cover every discriminator branch including Family C (unknown_code) once BLG-0029 identifies it.
+  - `mobile/src/screens/ScannerScreen.tsx` consumes the discriminator and shapes the API call accordingly (URL string for A / B, opaque code for C if shipped).
+  - Greek `scanner.*` strings unchanged (the "supported QR families" wording is implicit in the on-device validator behavior).
+  - `make check` green.
+  Design: N/A (pure on-device validation logic mirroring backend `can_parse`).
+  Approach: Ships in S-011 with BLG-0027 + BLG-0028.
+  Size: S
+  Impact-notes: { external-surface: no; rls: no; localization: no; country-code: GR }
+  Links: [docs/adr/S-001-ADR-0003-Scanner-ux-flow.md, docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, mobile/src/parsers/gr.ts]
+
+- ID: BLG-0033
+  Title: Detect probable duplicates across QR sources for the same physical purchase
+  Status: planned
+  Ready: no (post-MVP — added to `AGENTS.md` §2.9 by ADR-0014)
+  Owner: product-manager (with parser-specialist)
+  Type: product
+  Outcome: If a user scans two different QRs from the same physical purchase (e.g. the AADE signature URL + the merchant-provider URL — both printed on the same receipt), the app offers to merge them rather than storing them as two separate receipts.
+  Acceptance:
+  - Algorithm: `(merchant_afm, issue_date, total, payment_method)` triplet within a small tolerance suggests a probable duplicate.
+  - UX: prompt "Looks like the same receipt — merge?" with confirm / decline.
+  - Telemetry: counts only.
+  Design: TBD if the item activates.
+  Approach: Post-MVP feature; sized when activated.
+  Size: M
+  Impact-notes: { external-surface: no; rls: no; localization: yes }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, AGENTS.md §2.9]
+
+- ID: BLG-0034
+  Title: Retire HS256 transitional support in the JWT verifier
+  Status: planned
+  Ready: no (opens after BLG-0023 ships and the production project runs on JWT Signing Keys for one release cycle)
+  Owner: architect (with security-privacy-officer + backend-builder)
+  Type: security
+  Outcome: The HS256 path in `backend/app/auth.py` is removed; `SUPABASE_JWT_LEGACY_HS256_SECRET` is no longer read; the deprecated `SUPABASE_JWT_SECRET` alias is removed. The auth gate is asymmetric-only against Supabase's JWT Signing Keys.
+  Acceptance:
+  - HS256 branch removed from the verifier; algorithm allowlist becomes `{ES256, RS256}`.
+  - Tests covering HS256 removed or retargeted to assert HS256 rejection.
+  - Env vars dropped from `backend/.env.example`.
+  - Runbook entry "rollback to HS256-only" removed (cannot be reversed without re-enabling HS256).
+  - `make check` green.
+  Design: N/A.
+  Approach: Open after BLG-0023 has run in production for one release cycle without incident.
+  Size: XS
+  Impact-notes: { external-surface: no; rls: no; localization: no }
+  Links: [docs/adr/S-010-ADR-0015-Asymmetric-jwt-verification.md, BLG-0023]
 
 - ID: BLG-0025
-  Title: Formalize the JWT-rejection diagnostic log line on `backend/app/routes/receipts.py`
-  Status: drift
-  Ready: no (in-session ad-hoc fix landed 2026-05-12; this BLG retro-tests it and locks the contract)
+  Title: Formalize the JWT-rejection diagnostic log line + ADR-0002 §6 amendment
+  Status: planned
+  Ready: yes (ADR-0016 accepted in S-010; co-located with BLG-0023 in the same S-011 PR)
   Owner: backend-builder (with agent-safety-officer + qa)
   Type: engineering
   Outcome: The diagnostic log line added live on 2026-05-12 to `jwt_exception_handler` — which surfaces the `JwtError` code + the JWT *header* metadata (`alg`, `typ`, truncated `kid`) on every 401 from the auth gate — gets a regression test, a comment crediting the BLG-0023 incident, and a sentence in `.agents/rules/agent-runtime-security.md` (or ADR-0002 §6 amendment) documenting why these *header* fields are PII-safe (they are public metadata, never the token / payload / signature). Caught the live ES256 misconfig in <2 minutes; should stay.
