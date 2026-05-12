@@ -2,6 +2,8 @@
 
 Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `docs/templates/backlog-item.md`. When an item completes, **move** (don't duplicate) it into `docs/done.md`.
 
+> S-012 (`mobile-qr-validator-shape`) closed 2026-05-12: **implementation sprint, BLG-0032 shipped solo** (the smallest plausible Ready item not gated on consented fixtures, per `.agents/agents/go.md` rule #3). The mobile QR validator now exposes `validateGrQrCode(input)` as a discriminated union over the three Greek receipt QR families documented in ADR-0014 §3 (`einvoicing` / `aade` / `epsilon`) plus the `unknown_code` placeholder branch for Family C. `mobile/src/screens/ScannerScreen.tsx` consumes the discriminator and gates submission on a module-level `IMPLEMENTED_FAMILIES = Set(["einvoicing"])` — a one-line widening once BLG-0027 + BLG-0028 land in S-013. No backend change, no schema change, no new outbound surface, no new runtime dep. `make check`: **411 tests across 21+ suites — green** (389 → 411, +22 from the new validator suite). Five items stay in the queue: BLG-0030 (Ready, AADE-fixture-gated), BLG-0027 (Ready, gated on BLG-0030), BLG-0028 (Ready, Epsilon-fixture-gated), BLG-0029 (planned, owner-photo-gated), BLG-0034 (planned, post-production-cycle gated). See `docs/done.md` Sprint S-012 entry.
+>
 > S-011 (`auth-modernization-and-jwt-header-logging-contract`) closed 2026-05-12: **implementation sprint, BLG-0023 + BLG-0024 + BLG-0025 all shipped** in one PR per the ADR-0015 §8 + ADR-0016 §3 hard-ordering constraint. The asymmetric Supabase JWT verifier is live (`cryptography==45.0.1`; ES256 + RS256 + HS256-transitional; JWKS cache 600 s / 60 s refetch-floor; the full algorithm allowlist + cross-check matrix). The mobile scanner now silently refreshes the session once on a recoverable 401 before signing the user out. `make check`: **389 tests across 21+ suites — green** (346 → 389, +43). Two new runbooks (`rotate-supabase-jwt-signing-keys`, `rollback-to-hs256-only`). Four Ready items carry to S-012 (BLG-0030 + BLG-0027 + BLG-0028 + BLG-0032 — all gated on consented fixtures or on each other). BLG-0034 (HS256 retirement) stays planned until BLG-0023 has run in production for one release cycle. See `docs/done.md` Sprint S-011 entry.
 >
 > S-010 (`receipt-format-scope-and-auth-modernization`) closed 2026-05-12: **discovery sprint, three ADRs accepted (ADR-0014 / ADR-0015 / ADR-0016) + DES-0006**. Resolves both drift findings from the 2026-05-12 live on-device run. BLG-0026 (umbrella) moves to done. BLG-0023 / BLG-0024 / BLG-0025 lift from `drift` to **Ready**. Five new Ready / planned BLGs spawned (BLG-0027 AADE adapter, BLG-0028 Epsilon Net adapter, BLG-0029 Family C identification, BLG-0030 AADE HTML-shape spike, BLG-0032 mobile QR-validator mirror). Post-MVP follow-ups added (BLG-0033 cross-source dedup, BLG-0034 HS256 retirement). Two new outbound hosts on the allowlist (`www1.aade.gr`, `epsilondigital-3rdpartc.epsilonnet.gr`) scoped to parser + spike fetches per §5.8.1. `make check` unchanged from S-009 close (346 tests). See `docs/done.md` Sprint S-010 entry.
@@ -246,25 +248,7 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
   Impact-notes: { external-surface: `www1.aade.gr` (allowlisted in S-010 — first actual fetch happens in this BLG under §5.8.1 consent); rls: no; localization: no; country-code: GR }
   Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, BLG-0027]
 
-- ID: BLG-0032
-  Title: Mobile `validateGrQrCode` — discriminated-union mirror for the three GR QR families
-  Status: planned
-  Ready: yes (couples to BLG-0027 + BLG-0028)
-  Owner: mobile-builder (with parser-specialist)
-  Type: product
-  Outcome: The on-device QR validator (`mobile/src/parsers/gr.ts`) recognizes all three GR families with a discriminated-union return type so the scanner knows whether to send the value as-is (Family A / B URLs) or as a freeform code (Family C, when it arrives). Defense-in-depth mirror per ADR-0003 §3.
-  Acceptance:
-  - `mobile/src/parsers/gr.ts` exposes `validateGrQrCode(input: string) => { ok: true; family: "einvoicing" | "aade" | "epsilon" | "unknown_code"; ... } | { ok: false; reason: ... }`. Existing `validateGrQrUrl` stays as a delegate for backwards compatibility.
-  - Regex patterns mirror the backend `can_parse` shape exactly for each family — same defense-in-depth contract as ADR-0003 §3.
-  - Reducer tests cover every discriminator branch including Family C (unknown_code) once BLG-0029 identifies it.
-  - `mobile/src/screens/ScannerScreen.tsx` consumes the discriminator and shapes the API call accordingly (URL string for A / B, opaque code for C if shipped).
-  - Greek `scanner.*` strings unchanged (the "supported QR families" wording is implicit in the on-device validator behavior).
-  - `make check` green.
-  Design: N/A (pure on-device validation logic mirroring backend `can_parse`).
-  Approach: Ships in S-011 with BLG-0027 + BLG-0028.
-  Size: S
-  Impact-notes: { external-surface: no; rls: no; localization: no; country-code: GR }
-  Links: [docs/adr/S-001-ADR-0003-Scanner-ux-flow.md, docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, mobile/src/parsers/gr.ts]
+<!-- BLG-0032 shipped in S-012 — see `docs/done.md` Sprint S-012 entry. The on-device discriminated-union validator (`mobile/src/parsers/gr.ts`) recognises all three GR families plus the Family C `unknown_code` placeholder. The scanner gates submission today on `IMPLEMENTED_FAMILIES = Set(["einvoicing"])`; widening that set is the one-line change that flips BLG-0027 + BLG-0028 on simultaneously once they land. -->
 
 - ID: BLG-0033
   Title: Detect probable duplicates across QR sources for the same physical purchase
