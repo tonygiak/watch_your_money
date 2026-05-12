@@ -22,7 +22,8 @@ export type ScannerStatus =
   | "submitting"
   | "success_new"
   | "success_duplicate"
-  | "auth_error"
+  | "auth_error_recoverable"
+  | "auth_error_terminal"
   | "parse_error_user"
   | "network_error"
   | "parser_drift"
@@ -51,6 +52,13 @@ export type ScannerState = {
   errorCode: ScannerErrorCode | null;
   /** Number of retries on the same `qrUrl` (capped externally if desired). */
   retries: number;
+  /**
+   * Whether we have already attempted a silent `supabase.auth.refreshSession()`
+   * + retry for the current `qrUrl` (BLG-0024 / ADR-0015 §8). Reset on
+   * `USER_CANCELLED` and on any non-401 outcome. A second 401 on the same
+   * submission goes to `auth_error_terminal` and signs the user out.
+   */
+  hasAttemptedAuthRefresh: boolean;
 };
 
 export const initialScannerState: ScannerState = {
@@ -59,6 +67,7 @@ export const initialScannerState: ScannerState = {
   receipt: null,
   errorCode: null,
   retries: 0,
+  hasAttemptedAuthRefresh: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -77,7 +86,18 @@ export type ScannerAction =
   | { type: "CAMERA_ERROR" }
   | { type: "SUBMIT_201_NEW"; receiptId: string }
   | { type: "SUBMIT_200_DUPLICATE"; receiptId: string }
+  /**
+   * Backend returned 401. The reducer routes to
+   * `auth_error_recoverable` on the first 401 of this submission, or to
+   * `auth_error_terminal` on a 401 *after* a `RETRY_AFTER_REFRESH` attempt
+   * — see BLG-0024 / ADR-0015 §8.
+   */
   | { type: "SUBMIT_401" }
+  /**
+   * Retry the parse after a successful silent `supabase.auth.refreshSession()`.
+   * Only legal from `auth_error_recoverable`. Bumps `hasAttemptedAuthRefresh`.
+   */
+  | { type: "RETRY_AFTER_REFRESH" }
   | { type: "SUBMIT_422" }
   | { type: "SUBMIT_502" }
   | { type: "SUBMIT_503" }
@@ -163,6 +183,7 @@ export function scannerReducer(
         status: "success_new",
         receipt: { receiptId: action.receiptId, isDuplicate: false },
         errorCode: null,
+        hasAttemptedAuthRefresh: false,
       };
 
     case "SUBMIT_200_DUPLICATE":
@@ -172,11 +193,31 @@ export function scannerReducer(
         status: "success_duplicate",
         receipt: { receiptId: action.receiptId, isDuplicate: true },
         errorCode: null,
+        hasAttemptedAuthRefresh: false,
       };
 
     case "SUBMIT_401":
       if (state.status !== "submitting") return state;
-      return { ...state, status: "auth_error", errorCode: "auth" };
+      // First 401 → recoverable: try a silent session refresh + one retry.
+      // Second 401 (after `RETRY_AFTER_REFRESH`) → terminal: hard sign-out.
+      // This composes with the BLG-0023 backend so a transient
+      // JWKS-unreachable window does not sign the user out.
+      if (state.hasAttemptedAuthRefresh) {
+        return { ...state, status: "auth_error_terminal", errorCode: "auth" };
+      }
+      return { ...state, status: "auth_error_recoverable", errorCode: "auth" };
+
+    case "RETRY_AFTER_REFRESH":
+      // Legal only from the recoverable state. Bump the refresh-attempt
+      // flag so any subsequent 401 routes straight to terminal.
+      if (state.status !== "auth_error_recoverable") return state;
+      if (state.qrUrl === null) return state;
+      return {
+        ...state,
+        status: "submitting",
+        errorCode: null,
+        hasAttemptedAuthRefresh: true,
+      };
 
     case "SUBMIT_422":
       if (state.status !== "submitting") return state;
@@ -246,6 +287,7 @@ export type TelemetryEvent =
   | "qr_detected_unsupported"
   | "submit_success_new"
   | "submit_success_duplicate"
+  | "submit_auth_refresh_attempt"
   | `submit_failure_${ScannerErrorCode}`;
 
 /** Map a state transition to the telemetry event it should emit (if any). */
@@ -266,7 +308,9 @@ export function telemetryEventFor(
     return "submit_success_new";
   if (prev === "submitting" && next === "success_duplicate")
     return "submit_success_duplicate";
-  if (prev === "submitting" && next === "auth_error")
+  if (prev === "submitting" && next === "auth_error_recoverable")
+    return "submit_auth_refresh_attempt";
+  if (prev === "submitting" && next === "auth_error_terminal")
     return "submit_failure_auth";
   if (prev === "submitting" && next === "parse_error_user")
     return "submit_failure_parse_error";

@@ -26,10 +26,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth import (
+    JWKSProvider,
     JwtError,
     JwtExpiredError,
     JwtMalformedError,
     VerifiedJwt,
+    extract_header_metadata,
     verify_supabase_jwt,
 )
 from app.config import settings
@@ -129,20 +131,41 @@ def get_storage() -> ReceiptStorage:  # pragma: no cover - overridden in tests
 
 
 def get_jwt_secret() -> str:  # pragma: no cover - overridden in tests
-    return settings.supabase_jwt_secret
+    """Legacy HS256 secret (kept as the DI handle name for test back-compat).
+
+    Per ADR-0015 §5 this is now the transitional HS256 path; the asymmetric
+    path uses :func:`get_jwks_provider` instead.
+    """
+    return settings.supabase_jwt_legacy_hs256_secret
+
+
+def get_jwks_provider() -> JWKSProvider | None:  # pragma: no cover - overridden in tests
+    """Return the production JWKS provider (lazy).
+
+    Returns ``None`` when no JWKS URL is configured (e.g. during the Option A
+    rollback window in DES-0006). In that mode only HS256 tokens are
+    verifiable; every ES256/RS256 token is rejected with
+    ``JwtMalformedError("asymmetric verification not configured")`` per the
+    ADR-0015 §4 algorithm allowlist.
+    """
+    from app.services.jwks_provider import get_jwks_provider as _factory
+
+    return _factory()
 
 
 AuthorizationHeader = Annotated[
     str | None, Header(alias="Authorization", description="Bearer <jwt>")
 ]
 JwtSecret = Annotated[str, Depends(get_jwt_secret)]
+JwksProviderDep = Annotated[JWKSProvider | None, Depends(get_jwks_provider)]
 
 
 def require_authenticated_user(
     authorization: AuthorizationHeader = None,
     secret: JwtSecret = "",
+    jwks_provider: JwksProviderDep = None,
 ) -> VerifiedJwt:
-    """FastAPI dependency: extract + verify the Bearer JWT.
+    """FastAPI dependency: extract + verify the Bearer JWT (ADR-0015).
 
     Raises :class:`JwtError` on any failure. The exception handler in
     :mod:`app.main` maps it to a 401 problem detail.
@@ -150,7 +173,11 @@ def require_authenticated_user(
     if not authorization or not authorization.lower().startswith("bearer "):
         raise JwtMalformedError("missing Bearer token")
     token = authorization[len("Bearer ") :].strip()
-    return verify_supabase_jwt(token, secret)
+    return verify_supabase_jwt(
+        token,
+        jwks_provider=jwks_provider,
+        legacy_hs256_secret=secret or None,
+    )
 
 
 VerifiedJwtDep = Annotated[VerifiedJwt, Depends(require_authenticated_user)]
@@ -296,45 +323,27 @@ def jwt_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         # but keeps the type checker happy.
         raise exc
 
-    # Server-side diagnostic log. We only log the JWT *header* (which is
-    # public metadata: alg / typ / kid) plus the JwtError subclass code +
-    # static message from app.auth. NEVER the token, payload, or signature
-    # (ADR-0002 §6 / agent-runtime-security.md §3).
-    header_alg: str | None = None
-    header_typ: str | None = None
-    header_kid: str | None = None
+    # Server-side diagnostic log per ADR-0016 §2. We log only the JWT
+    # *header* fields (PII-safe public metadata per RFC 7519 §5 — see
+    # ADR-0016 §1) plus the JwtError subclass code + the static `reason`
+    # message defined in `app.auth`. The token, payload, signature, and the
+    # raw `Authorization` header value never appear in any log record; this
+    # is pinned by the redaction regex scan in
+    # `backend/tests/test_auth_logging.py` (BLG-0025).
     authz = request.headers.get("Authorization", "")
-    if authz.lower().startswith("bearer "):
-        token = authz[len("Bearer ") :].strip()
-        parts = token.split(".")
-        if len(parts) == 3:
-            try:
-                import base64 as _b64
-                import json as _json
+    token = (
+        authz[len("Bearer ") :].strip()
+        if authz.lower().startswith("bearer ")
+        else None
+    )
+    header = extract_header_metadata(token)
 
-                seg = parts[0]
-                padded = seg + "=" * (-len(seg) % 4)
-                hdr = _json.loads(_b64.urlsafe_b64decode(padded.encode("ascii")))
-                if isinstance(hdr, dict):
-                    a = hdr.get("alg")
-                    t = hdr.get("typ")
-                    k = hdr.get("kid")
-                    header_alg = str(a) if a is not None else None
-                    header_typ = str(t) if t is not None else None
-                    # Truncate kid so we never echo a full secret-adjacent identifier.
-                    if isinstance(k, str):
-                        header_kid = (k[:6] + "…") if len(k) > 6 else k
-            except (ValueError, TypeError):
-                pass
-
-    # The format string deliberately inlines the fields so the default
-    # uvicorn formatter (which ignores ``extra={}``) still surfaces them.
     log.warning(
         "jwt_rejected code=%s alg=%s typ=%s kid=%s reason=%s",
         exc.code,
-        header_alg,
-        header_typ,
-        header_kid,
+        header.alg,
+        header.typ,
+        header.kid,
         str(exc),
     )
 
