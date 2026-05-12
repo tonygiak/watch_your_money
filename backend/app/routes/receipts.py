@@ -296,6 +296,48 @@ def jwt_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         # but keeps the type checker happy.
         raise exc
 
+    # Server-side diagnostic log. We only log the JWT *header* (which is
+    # public metadata: alg / typ / kid) plus the JwtError subclass code +
+    # static message from app.auth. NEVER the token, payload, or signature
+    # (ADR-0002 §6 / agent-runtime-security.md §3).
+    header_alg: str | None = None
+    header_typ: str | None = None
+    header_kid: str | None = None
+    authz = request.headers.get("Authorization", "")
+    if authz.lower().startswith("bearer "):
+        token = authz[len("Bearer ") :].strip()
+        parts = token.split(".")
+        if len(parts) == 3:
+            try:
+                import base64 as _b64
+                import json as _json
+
+                seg = parts[0]
+                padded = seg + "=" * (-len(seg) % 4)
+                hdr = _json.loads(_b64.urlsafe_b64decode(padded.encode("ascii")))
+                if isinstance(hdr, dict):
+                    a = hdr.get("alg")
+                    t = hdr.get("typ")
+                    k = hdr.get("kid")
+                    header_alg = str(a) if a is not None else None
+                    header_typ = str(t) if t is not None else None
+                    # Truncate kid so we never echo a full secret-adjacent identifier.
+                    if isinstance(k, str):
+                        header_kid = (k[:6] + "…") if len(k) > 6 else k
+            except (ValueError, TypeError):
+                pass
+
+    # The format string deliberately inlines the fields so the default
+    # uvicorn formatter (which ignores ``extra={}``) still surfaces them.
+    log.warning(
+        "jwt_rejected code=%s alg=%s typ=%s kid=%s reason=%s",
+        exc.code,
+        header_alg,
+        header_typ,
+        header_kid,
+        str(exc),
+    )
+
     detail = "Bearer token missing or invalid."
     if isinstance(exc, JwtExpiredError):
         detail = "Bearer token expired."

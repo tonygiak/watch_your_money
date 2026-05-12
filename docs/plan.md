@@ -4,67 +4,95 @@ The current direction of the project and the focus of the next sprint.
 
 ## Where we are right now
 
-Sprint **S-008 (discovery, `sdk-upgrade-path-forward`)** has just closed. Single output: **ADR-0013 accepted**, resolving the three-sprint `UNABLE_TO_VERIFY_LEAF_SIGNATURE` blocker on BLG-0016.
+Sprint **S-009 (implementation, `sdk-upgrade-and-on-device-acceptance-v2`)** has just closed. **The three-sprint Expo SDK 51 → 54 upgrade landed.**
 
-**Root cause diagnosed:** The `npm ERR! code UNABLE_TO_VERIFY_LEAF_SIGNATURE` error that blocked BLG-0016 in S-005, S-006, and S-007 is a **Node.js CA bundle staleness issue**. Node.js ships its own Mozilla CA store at its release date. If `registry.npmjs.org` adopted a root or intermediate CA after the installed Node.js version was released, TLS validation fails. The fix is to update Node.js to the current LTS release (v22.x, which ships an updated CA store) or to export the Windows system CA trust store via `NODE_EXTRA_CA_CERTS`. Both approaches keep `strict-ssl` fully enabled and require no new outbound host.
+ADR-0013 §3 pre-flight checklist executed end-to-end on the local Windows host:
 
-**Decision (ADR-0013):** Option A — host CA environment fix — is the sole path forward for S-009. A pre-flight checklist (ADR-0013 §3) gives `mobile-builder` an unambiguous, auditable sequence before any `npx expo install --fix` attempt. ADR-0012 §1 (EAS dev client rejection) remains in force unless S-009 exhausts the pre-flight checklist.
+- Step 1 (`node --version` → v22.22.0) passed.
+- Step 2 (Node.js update) skipped — already on LTS.
+- Step 3 (TLS smoke test, `npm pack expo@^54.0.0 --dry-run`) **failed even on Node v22** with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`.
+- Step 3a (export Windows OS-managed CA bundle to `~/ca-bundle.pem` + set `NODE_EXTRA_CA_CERTS`) **passed the retry on the first try**: 62 OS-managed root CAs, 97208-byte PEM bundle, never committed, fully reversible.
+- Step 4 (`npx expo install --fix` + `expo-doctor`) clean: **17/17 checks passed, no issues detected**.
 
-`make check` is **green at S-008 close: 143 backend + 203 mobile = 346 tests across 21+ suites** (unchanged from S-007 — no production code changes in a discovery sprint).
+`mobile/package.json` rewritten with the SDK 54 pin set (exact pins per ADR-0007 §1): `expo@54.0.34`, `react@19.1.0`, `react-native@0.81.5`, plus the full Expo SDK 54 native modules and `jest-expo@54.0.17`. Both ADR-0012 §3 deviations closed: `@react-native-community/netinfo@11.4.1` (was 11.3.2), `typescript@5.9.2` (was 5.6.3). Three drift candidates resolved in-sprint as runtime-tree mechanics: `mobile/tsconfig.json` `moduleResolution: "node"` override removed; eight `JSX.Element` migrated to `React.JSX.Element`; `babel-preset-expo@54.0.10` + `expo-modules-core@3.0.30` promoted to direct devDependencies for SDK 54 + npm 10 hoisting. The S-007 encryption-stack round-trip test runs unchanged under SDK 54's `@noble/ciphers@0.5.3`. `react-native-chart-kit@6.12.0` survived — BLG-0014 stays passive per ADR-0012 §6. ADR-0012 §1 (EAS dev client rejection) **remains in force** — Option A was sufficient.
 
-For the latest user-facing snapshot, read `AGENTS.md` §2.6 (feature catalog unchanged from S-007) and §2.7 (sprint snapshot now reflects S-008 closing).
+The §2.8 MVP bullets 4 (on-device receipt scanning under stock Expo Go) and 9 (PDF export → native share sheet) are now reachable on a real Greek consumer's phone via the verification path in `S-009-UREV-0001`.
+
+`make check` is **green at S-009 close: 143 backend + 203 mobile = 346 tests across 21+ suites** under `jest-expo@54.0.17` + `react@19.1.0` + `react-native@0.81.5`. Identical count to S-007 / S-008 close — no new tests; the contract surface didn't change, only the runtime tree moved underneath.
+
+For the latest user-facing snapshot, read `AGENTS.md` §2.6 (BLG-0016 + BLG-0020 / BLG-0021 on-device-resolution lines added) and §2.7 (snapshot now reflects S-009 closing).
+
+## Drift discovered post-S-009 close (2026-05-12 live debugging session)
+
+Between S-009 close and the start of S-010, a live on-device debugging session with the project owner surfaced **two distinct drift findings** that redirect S-010's theme and add three new backlog items.
+
+### Drift A — Backend auth misconfigured against Supabase asymmetric JWT signing keys
+
+While exercising the §2.8 MVP end-to-end on a real device, **every `POST /receipts/parse` request returned 401**. Root cause traced in ~10 minutes via an ad-hoc diagnostic log line added to `jwt_exception_handler` (now also tracked as BLG-0025): the Supabase project was auto-rotated 6 days earlier (2026-05-06) from the legacy HS256 JWT secret to the new ECC P-256 (ES256) signing key. The hand-rolled HS256-only verifier in `backend/app/auth.py` (ADR-0002 §1, deliberately stdlib-only) refused the ES256 token with `jwt_malformed: unsupported alg: 'ES256'`. Compounding: the operator's `SUPABASE_JWT_SECRET` env var had a UUID pasted in (likely the kid of the current signing key), not the actual legacy HS256 secret value.
+
+**Mitigation in-session (Option A)**: rotate the Supabase project back to the Legacy HS256 signing key via JWT Signing Keys → "Move to standby" on the previously-used key → "Rotate keys", then set `SUPABASE_JWT_SECRET=<the actual legacy secret value from the "Reveal" button on the Legacy JWT Secret tab>`, then full uvicorn restart. **Option A is verified end-to-end as of 2026-05-12 17:43 UTC+3**: (a) a synthetic-URL `POST /receipts/parse` from `127.0.0.1` returned `422 Unsupported QR URL` in 47 ms with no `jwt_rejected` line — auth gate passed, parser correctly rejected the fake URL; (b) live `POST /receipts/parse` from the test device at `192.168.1.208` returned `502 upstream_error` for at least one in-wallet receipt — meaning that receipt passed both the on-device validator AND the backend auth gate before failing only at the upstream-fetch step. The mitigation holds until BLG-0023 lands.
+
+**Long-term fix**: BLG-0023 (asymmetric JWT verification with JWKS support — S-010 discovery → S-011 implementation). Co-fix: BLG-0024 (soft auth-error handling in the scanner — silent token refresh + retry before sign-out, so a transient JWKS-cache miss can't hard-sign-out the user).
+
+### Drift B — Real Greek receipts do not match the §2.8 "Entersoft or SoftOne via e-invoicing.gr" scope
+
+The same on-device run surfaced **three distinct Greek QR families**, none currently handled by `mobile/src/parsers/gr.ts` or `backend/app/parsers/gr/`. Of the receipts scanned: **0 were `e-invoicing.gr` viewer URLs**.
+
+| Family | Shape | Count | Notes |
+| --- | --- | --- | --- |
+| A | `https://www1.aade.gr/tameiakes/myweb/q1.php?SIG=<hex>` | 8 | AADE "Σύστημα Σήμανσης" cash-register per-receipt signature URL. The most common Greek consumer receipt format. **Open product question**: AADE's verification page typically returns merchant + date + signature + totals — *not* SKU-level. Hits §2.2 differentiator. |
+| B | `https://epsilondigital-3rdpartc.epsilonnet.gr/fd/<hash>:<n>` | 1 | Epsilon Net fiscal-doc viewer — same tier as Entersoft / SoftOne but on their own domain instead of `e-invoicing.gr`. Adapter pattern likely transfers cleanly. |
+| C | `45C07BD642067E5` (15 hex chars, not a URL) | 5 (same physical receipt re-scanned) | Unknown — possibly a MARK, fiscal signature, or verification code. Identification + integration path TBD. |
+
+This is the dominant signal for what S-010 must discover. **Long-term fix**: BLG-0026 (umbrella discovery scope; spawns per-family Ready BLGs at S-010 close).
 
 ## Next sprint
 
-- **Type**: `implementation`
-- **Theme proposal**: `sdk-upgrade-and-on-device-acceptance-v2`
-- **Number**: **S-009**
-- **Why implementation**: BLG-0016 is Ready and executable per ADR-0013 §3 pre-flight checklist. The Ready queue has one clearly unblocked item; per `AGENTS.md` §4.1.2, the next sprint is implementation.
+- **Type**: `discovery`
+- **Theme**: **Receipt-format scope expansion — AADE tameiakí + Epsilon Net + non-URL codes** (Drift B). The four post-MVP discovery questions previously listed here (post-MVP direction quartet, §2.9 refresh, EAS pre-launch ADR, audit refresh) become subordinate to this finding; they may still be on the table but only after the receipt-format scope is decided.
+- **Number**: **S-010**
+- **Why discovery**: §4.1.1 — multi-agent scope-redefining decision requiring `architect` + `parser-specialist` + `data-architect` + `product-owner` + `product-manager` + `security-privacy-officer` + `agent-safety-officer` + `localization-specialist`, chaired by `orchestrator` per §4.4. No production code can ship until the ADRs land.
 
-### Goals for the implementation sprint S-009
+### Discovery questions for S-010 (revised order — receipt-format expansion first)
 
-1. **Run the ADR-0013 §3 pre-flight checklist** as the very first action:
-   - Verify / update Node.js to v22 LTS (updates the bundled Mozilla CA store).
-   - Smoke test: `npm pack expo@^54.0.0 --dry-run` in a temp dir.
-   - If still failing: export Windows CA bundle via PowerShell → set `NODE_EXTRA_CA_CERTS` → retry.
-   - If smoke test passes → proceed to the full SDK 54 upgrade.
-   - If checklist exhausted without success → open BLG-0023 + S-010 for Option B (EAS dev client).
-2. **BLG-0016 — Expo SDK 51 → 54 upgrade** (if pre-flight passes):
-   - `npx expo install --fix` in `mobile/`.
-   - `expo-doctor` until zero warnings.
-   - Regenerate `mobile/package-lock.json`.
-   - Verify all BLG-0016 acceptance bullets (encryption-stack round-trip test already shipped in S-007).
-   - `make check` green under the new jest-expo@54 preset.
-3. **BLG-0020 + BLG-0021 on-device verification** (contingent on BLG-0016 landing):
-   - The share-sheet hand-off (`defaultShareImpl` → `expo-sharing` + `expo-file-system`) is already wired; the on-device test verifies it under SDK 54 on real Expo Go.
-   - The native date-picker (`DateField.tsx` → `@react-native-community/datetimepicker`) is already wired; the on-device test verifies it opens under SDK 54.
-4. **S-009-UREV-0001** — end-to-end acceptance script on stock Expo Go (iOS or Android, latest store version):
-   - S-004 script: sign in → scan → Insights → offline → restore.
-   - S-006 freelancer-mode script: sign in → scan → tag as business → Insights → Profile → ΑΦΜ → export PDF → native share sheet.
+1. **Receipt-format scope (BLG-0026, primary theme).** For each of the three families A / B / C:
+   - Is it in scope for the MVP §2.8 bullet 3, or do we revise §2.8 to acknowledge a "supported QR set" smaller than "all Greek receipts"?
+   - Does the integration path preserve §2.2 SKU-level data? Specifically for Family A (AADE), what is the data ceiling when scanning the signature URL alone, and is an alternative path (myDATA B2C with user TIN — new auth surface) acceptable for §2.4 hard constraints?
+   - Each new family adds a new outbound host — `www1.aade.gr` and `epsilondigital-3rdpartc.epsilonnet.gr`. `agent-safety-officer` must approve the allowlist update before any spike fetches.
+2. **Auth modernization (BLG-0023 + BLG-0024).** Adopt Supabase asymmetric JWT signing keys (ES256/JWKS) on the backend. Multi-sign-off per §4.11: `architect` + `security-privacy-officer` + `agent-safety-officer` + `engineering-manager` + `backend-builder`. Couples with the soft auth-error mobile change so the rollout doesn't sign users out on a transient JWKS-cache miss.
+3. **Diagnostic log formalization (BLG-0025).** Lock in the ad-hoc 2026-05-12 change with a regression test + a redaction test (token / payload / signature never logged) + an ADR-0002 §6 amendment recognizing JWT *headers* as loggable public metadata.
+4. **Auth-fix verification (Option A from this session) — DONE in-session.** Both a synthetic-URL test and a live mobile request confirmed the HS256 auth gate now accepts Supabase-issued tokens after the JWT-key rollback. No S-010 DES note required for this; the verification record lives in this `docs/plan.md` "Drift A" section and in terminal 39's trace.
+5. **Deferred — only addressed if time permits after 1–4.** The previous quartet:
+   - (a) Real-receipt fixture set + drift detection (BLG-0004 + BLG-0009) — now coupled to BLG-0026 (each new family needs its own fixtures).
+   - (b) EU country expansion — likely **deferred to S-012+**. Family C may turn out to be a Greek format anyway; let the country-agnostic parser registry first prove out on three GR sub-adapters before adding a non-GR adapter.
+   - (c) Post-MVP UX gaps (BLG-0011 language switch).
+   - (d) §2.9 out-of-scope list refresh.
+   - (e) EAS pre-launch ADR (ADR-0007 §7).
+   - (f) `agent-safety-officer` audit refresh on `NODE_EXTRA_CA_CERTS` runbook.
 
-### Acceptance at S-009 review
+### Acceptance at S-010 review
 
-- Pre-flight checklist ran per ADR-0013 §3 and outcome logged.
-- `expo-doctor` reports zero compat warnings.
-- `make check` green (346+ tests, now under `jest-expo@~54`).
-- Real device acceptance script executed on stock Expo Go.
-- `AGENTS.md` §2.6 + §2.7 updated at sprint close.
+- ADR(s) under `docs/adr/S-010-*` covering BLG-0026 (per-family scope decisions), BLG-0023 (asymmetric JWT verification), and an amendment to ADR-0002 §6 (BLG-0025 logging recognition).
+- Per-family Ready BLGs (e.g. BLG-0027 AADE adapter, BLG-0028 Epsilon Net adapter, BLG-0029 non-URL-code identification) carrying outcome, acceptance criteria, fixture-acquisition plan with §5.8.1 consent, localization + RLS + country-code impact notes.
+- DES note confirming Option A is sufficient until BLG-0023 lands.
+- `.agents/context/outbound-allowlist.md` updated with `www1.aade.gr` and `epsilondigital-3rdpartc.epsilonnet.gr` (allowlisted for parser fetches only, allowlisted for in-sprint spike fetches only) per `agent-safety-officer` sign-off.
+- `make check` not run if no code changed (§4.7 — discovery sprint).
+- `AGENTS.md` §2.6 unchanged (no user-visible behavior shipped in discovery); §2.7 + `docs/plan.md` updated at sprint close per §4.1.5.
 
 ### Cadence after that
 
-- **S-010** — depends on S-009 outcome:
-  - If BLG-0016 lands: likely **discovery** — opens the door to country expansion (RO/IT/PT/ES adapters per §5.9), real-receipt fixtures (BLG-0004 + BLG-0009), or post-MVP UX gaps.
-  - If pre-flight checklist is exhausted: **discovery** for BLG-0023 (EAS dev client path — `agent-safety-officer` supply-chain review of EAS CLI + code-signing surface required).
+- **S-011** — implementation, scoped to the Ready items that emerge from S-010. Likely BLG-0023 + BLG-0024 + BLG-0025 + the first 1–2 per-family adapters from BLG-0026.
 
-## Open questions for S-009
+## Open questions for S-010
 
-- **Node.js version resolved at S-008 close**: `node --version` → **v22.22.0** — already on LTS. ADR-0013 §3 Step 2 (Node.js update) is skipped; S-009 starts at Step 3 (TLS smoke test) and will execute Step 3a (Windows CA bundle export via `NODE_EXTRA_CA_CERTS`) before `npx expo install --fix`.
-- Whether `react-native-chart-kit@6.12.0` survives `expo install --fix` for SDK 54 (BLG-0014 — passive unless the install proves otherwise).
+- **Family C identification.** What system emits a 15-hex-char QR with no URL prefix? Candidate hypotheses: (i) older or non-certified thermal printer encoding the receipt MARK without a viewer URL, (ii) a B2B-only myDATA identifier, (iii) a verification code intended to be typed into a portal rather than scanned. Resolution path: ask the project owner for the printed receipt's merchant + a photo of the QR area + the printed text near the QR (which usually identifies the system).
+- **AADE SKU-level data ceiling.** Can scanning `q1.php?SIG=...` plus following onward links from the AADE verification page get us to SKU-level, or is myDATA B2C the only path? Resolution: a sandbox spike against a consented AADE receipt under `docs/spikes/`, never via an LLM/MCP per §5.8.1.
+- **`502 upstream_error` from the phone.** The same 2026-05-12 session logged two `502 upstream_error` responses from a real device-originated `POST /receipts/parse`, meaning at least one in-wallet QR *did* pass the current `e-invoicing.gr` validator but failed at the upstream-fetch step. S-010 should fold "of receipts that pass the validator, what fraction fetch?" into the BLG-0026 spike alongside "what fraction of in-wallet receipts pass the validator at all?". Candidate causes: receipt expired upstream, e-invoicing.gr 404 for the UUID + token pair, rate-limiting, HTML drift, or a near-matching camera misread.
 
 ## Notes for whoever picks this up
 
-- **ADR-0013 is the new execution contract for BLG-0016.** Read `docs/adr/S-008-ADR-0013-Sdk-upgrade-env-fix.md` before touching `mobile/package.json`.
-- **The S-005 ADRs + DES are still the contracts.** ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, DES-0004, DES-0005 all locked. S-009 implements against them; ADR-0013 adds only the pre-flight checklist.
-- **Contract-level acceptance for BLG-0020 + BLG-0021 is complete.** S-009 runs the on-device half once the SDK 54 tree lands.
-- **The encryption-stack round-trip test ships under SDK 51** but the test contract is SDK-version-agnostic. When SDK 54 lands, the test moves with it byte-identically.
-- **PowerShell `make check` quirk persists**: bare `make check` may misresolve on PowerShell sessions where the workspace path contains the Greek folder name `Υπολογιστής`. Workaround: run `ruff check`, `mypy`, `pytest`, `tsc`, `jest` directly. Logged since S-003.
+- **ADR-0013 closed.** Its purpose (a precise, exhaustion-clear pre-flight checklist for the SDK 54 install) was served. The Step 3a fallback was the operative path; future SDK upgrades that hit the same TLS failure mode follow the same pattern. Do not re-open ADR-0013.
+- **The encryption-stack round-trip test from S-007 is now the canonical regression canary across SDK upgrades.** Forward-only variant; SDK-version-agnostic; runs in `make check`.
+- **PowerShell `make check` quirk persists** with the Greek folder name `Υπολογιστής` in the workspace path. Workaround: invoke `ruff check`, `mypy`, `pytest`, `tsc`, `jest` directly. Logged since S-003. Future Makefile fix is a low-priority drift item (no BLG opened — the workaround works).
+- **`NODE_EXTRA_CA_CERTS` is per-developer-machine.** Set it once via `[Environment]::SetEnvironmentVariable('NODE_EXTRA_CA_CERTS', "$env:USERPROFILE\ca-bundle.pem", 'User')`. CI is unaffected — GitHub Actions runners ship a current Mozilla CA bundle. This is documented in `S-009-UREV-0001`.
+- **The S-005 ADRs + DES are still the contracts.** ADR-0008, ADR-0009, ADR-0010, ADR-0011 stay locked. ADR-0012 is now byte-identical except §3 (deviations closed). DES-0004, DES-0005 unchanged.
