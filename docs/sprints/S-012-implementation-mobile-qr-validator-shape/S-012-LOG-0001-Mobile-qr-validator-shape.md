@@ -77,3 +77,15 @@ Entries follow the audit-trail schema in `AGENTS.md` §4.9.3.
 - Dependencies added: none
 - Sensitive approvals: none
 - Outcome: Sprint closed. Handoff back to `orchestrator` per `.agents/agents/go.md` rule #4.
+
+## 2026-05-12 22:55 — Post-sprint drift findings (project-owner consented data)
+
+- Agent: `orchestrator` (chair) + `parser-specialist` + `mobile-builder`
+- Action: Project owner provided two real Greek receipts (one AADE tameiakí, one Epsilon Net) plus explicit `AGENTS.md` §5.8.1 written consent for fixture use. Project owner also pasted the **QR-decoded URL strings** from both receipts, removing the need for any image-OCR-based interpretation. Comparing the decoded URLs against the regexes shipped in S-012 surfaced two regex-shape drifts from ADR-0014 §3:
+  - **Family A AADE SIG charset.** Real SIG is `[A-Z0-9]+(\.[0-9]+)?` (uppercase Latin alphanumeric + optional `.NN` suffix); the shipped `GR_AADE_SIG_REGEX = /^[0-9A-Fa-f]+$/` rejects every real AADE QR at the first non-hex character (e.g. the `M` in `DMB23002071…`).
+  - **Family B Epsilon path.** Real path is `/DocViewer/<uuid>` (RFC 4122 v4 UUID); the shipped `GR_EPSILON_PATH_REGEX = /^\/fd\/(?<hash>[A-Za-z0-9]+):(?<index>[0-9]+)$/` rejects every real Epsilon QR. The host is correct.
+- Outbound hosts contacted: **none** (no AADE / Epsilon fetch performed; the QR decodes alone gave full ground truth for the validator-shape question).
+- MCP tools invoked: none
+- Dependencies added: none
+- Sensitive approvals: §5.8.1 written consent from the project owner recorded verbatim in `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`. Photos remain only in the editor's local assets folder; they are not committed to the repo.
+- Outcome: Spike artifact written at `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`. Two new Ready BLGs opened (**BLG-0035** Epsilon path regex correction; **BLG-0036** AADE SIG charset correction). `docs/plan.md` rewritten to point at S-013 with the new theme `gr-validator-drift-corrections`; the previous `first-gr-adapter-expansions` theme defers to S-014 because backend adapters still need the gated AADE / Epsilon fetches (ADR-0014 §4 ToS-review precondition unchanged). `AGENTS.md` §2.7 refreshed. None of this changes the S-012 ship — `make check` posture and the BLG-0032 implementation are unchanged. These are post-sprint planning artifacts per `AGENTS.md` §4.1.5.

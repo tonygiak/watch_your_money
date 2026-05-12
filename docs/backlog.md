@@ -2,7 +2,9 @@
 
 Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `docs/templates/backlog-item.md`. When an item completes, **move** (don't duplicate) it into `docs/done.md`.
 
-> S-012 (`mobile-qr-validator-shape`) closed 2026-05-12: **implementation sprint, BLG-0032 shipped solo** (the smallest plausible Ready item not gated on consented fixtures, per `.agents/agents/go.md` rule #3). The mobile QR validator now exposes `validateGrQrCode(input)` as a discriminated union over the three Greek receipt QR families documented in ADR-0014 §3 (`einvoicing` / `aade` / `epsilon`) plus the `unknown_code` placeholder branch for Family C. `mobile/src/screens/ScannerScreen.tsx` consumes the discriminator and gates submission on a module-level `IMPLEMENTED_FAMILIES = Set(["einvoicing"])` — a one-line widening once BLG-0027 + BLG-0028 land in S-013. No backend change, no schema change, no new outbound surface, no new runtime dep. `make check`: **411 tests across 21+ suites — green** (389 → 411, +22 from the new validator suite). Five items stay in the queue: BLG-0030 (Ready, AADE-fixture-gated), BLG-0027 (Ready, gated on BLG-0030), BLG-0028 (Ready, Epsilon-fixture-gated), BLG-0029 (planned, owner-photo-gated), BLG-0034 (planned, post-production-cycle gated). See `docs/done.md` Sprint S-012 entry.
+> **Post-S-012-close, 2026-05-12 evening — drift findings from project-owner-consented data.** Project owner provided two real Greek receipts (one AADE tameiakí, one Epsilon Net) under explicit `AGENTS.md` §5.8.1 consent, plus the **QR-decoded URL strings** from both. Comparing the decoded URLs against the regexes shipped in S-012 surfaced two real-world drifts from ADR-0014 §3: the AADE SIG charset is `[A-Z0-9]+(\.[0-9]+)?` (not hex-only), and the Epsilon path is `/DocViewer/<uuid>` (not `/fd/<hash>:<n>`). Full analysis + consent statement at `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`. Two new Ready BLGs (**BLG-0035**, **BLG-0036**) capture the corrections — both implementable in one small sprint with no backend touch. The four older Ready / planned items (BLG-0030 / BLG-0027 / BLG-0028 / BLG-0029) still need the gated AADE / Epsilon fetches before they can ship. `docs/plan.md` retargets S-013 to `gr-validator-drift-corrections`; `first-gr-adapter-expansions` defers to S-014.
+>
+> S-012 (`mobile-qr-validator-shape`) closed 2026-05-12: **implementation sprint, BLG-0032 shipped solo** (the smallest plausible Ready item not gated on consented fixtures, per `.agents/agents/go.md` rule #3). The mobile QR validator now exposes `validateGrQrCode(input)` as a discriminated union over the three Greek receipt QR families documented in ADR-0014 §3 (`einvoicing` / `aade` / `epsilon`) plus the `unknown_code` placeholder branch for Family C. `mobile/src/screens/ScannerScreen.tsx` consumes the discriminator and gates submission on a module-level `IMPLEMENTED_FAMILIES = Set(["einvoicing"])` — a one-line widening once BLG-0027 + BLG-0028 land. No backend change, no schema change, no new outbound surface, no new runtime dep. `make check`: **411 tests across 21+ suites — green** (389 → 411, +22 from the new validator suite). See `docs/done.md` Sprint S-012 entry.
 >
 > S-011 (`auth-modernization-and-jwt-header-logging-contract`) closed 2026-05-12: **implementation sprint, BLG-0023 + BLG-0024 + BLG-0025 all shipped** in one PR per the ADR-0015 §8 + ADR-0016 §3 hard-ordering constraint. The asymmetric Supabase JWT verifier is live (`cryptography==45.0.1`; ES256 + RS256 + HS256-transitional; JWKS cache 600 s / 60 s refetch-floor; the full algorithm allowlist + cross-check matrix). The mobile scanner now silently refreshes the session once on a recoverable 401 before signing the user out. `make check`: **389 tests across 21+ suites — green** (346 → 389, +43). Two new runbooks (`rotate-supabase-jwt-signing-keys`, `rollback-to-hs256-only`). Four Ready items carry to S-012 (BLG-0030 + BLG-0027 + BLG-0028 + BLG-0032 — all gated on consented fixtures or on each other). BLG-0034 (HS256 retirement) stays planned until BLG-0023 has run in production for one release cycle. See `docs/done.md` Sprint S-011 entry.
 >
@@ -162,6 +164,45 @@ Everything **planned** or **in progress**. Schema in `AGENTS.md` §4.9.1 and `do
 -->
 
 <!-- BLG-0026 shipped in S-010 — see `docs/done.md` Sprint S-010 entry. ADR-0014 produced. Spawned BLG-0027 + BLG-0028 + BLG-0029 + BLG-0030 + BLG-0032 + BLG-0033. -->
+
+- ID: BLG-0035
+  Title: Correct mobile Epsilon path regex (`/DocViewer/<uuid>`, not `/fd/<hash>:<n>`) + ADR-0014 §3 amendment
+  Status: planned
+  Ready: yes (ground-truth QR string captured under §5.8.1 consent in `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`; no upstream fetch required to ship)
+  Owner: mobile-builder (with parser-specialist)
+  Type: parser
+  Outcome: Scanning a real Epsilon Net receipt with the current app no longer surfaces a spurious `{ ok: false, reason: "path" }` — the on-device validator recognises the actual `/DocViewer/<uuid>` shape. The `epsilon` variant of `GrQrValidationOk` exposes a single `uuid` field (instead of the never-observed `hash` + `index` pair). ADR-0014 §3 gets an in-place amendment block documenting the correction, signed off by `parser-specialist` in the sprint LOG per §4.11. The §3-level decision authority for "what the GR Family B path regex actually is" sits with `parser-specialist` per ADR-0014 §6, so this is a refinement of an accepted ADR, not a new architectural decision.
+  Acceptance:
+  - `mobile/src/parsers/gr.ts` `GR_EPSILON_PATH_REGEX` updated to `/^\/DocViewer\/(?<uuid>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/` (RFC 4122 v4 shape). Host regex unchanged (`epsilondigital-3rdpartc.epsilonnet.gr` matches the QR ground truth byte-for-byte).
+  - `GrQrValidationOk` `epsilon` variant changes from `{ hash; index }` to `{ uuid }`. All callers updated (only `mobile/src/parsers/gr.ts` itself today; `ScannerScreen.tsx` still routes the family through `IMPLEMENTED_FAMILIES` so the field-rename does not affect submission flow).
+  - `mobile/__tests__/parsers/gr.test.ts` Family C (Epsilon Net) suite rewritten: the accept case uses the real consented URL `https://epsilondigital-3rdpartc.epsilonnet.gr/DocViewer/99564b3c-b21f-47d0-6d4a-08deaa87277d`; the reject cases assert that the old `/fd/<hash>:<n>` shape now returns `{ ok: false, reason: "path" }`.
+  - `docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md` gets a new amendment block at the bottom (sample wording in `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md` "ADR-0014 §3 amendment" section). `parser-specialist` co-sign recorded in the S-013 sprint LOG per §4.11 "Edits to ADRs: section owner for content".
+  - Fixture stub committed at `backend/tests/fixtures/receipts/gr-epsilon-001/provenance.md` carrying the verbatim §5.8.1 consent statement + the decoded QR URL + the redactions list + a "no `raw.html` until BLG-0028 fetch lands" status note. **No** `raw.html`, no `expected.json` in S-013 — those land with BLG-0028.
+  - `make check` green.
+  Design: N/A (parser shape correction; no UX change — the family was already routed through `unsupported_qr` in S-012's `IMPLEMENTED_FAMILIES` gate).
+  Approach: Pure on-device regex + test update + one-paragraph ADR amendment + fixture stub. No upstream fetch, no new outbound surface, no new dependency.
+  Size: XS
+  Impact-notes: { external-surface: no (no fetch in this BLG; BLG-0028 still gated on its consented fetch); rls: no; localization: no; country-code: GR }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md, mobile/src/parsers/gr.ts]
+
+- ID: BLG-0036
+  Title: Correct mobile AADE SIG charset regex (`[A-Z0-9]+(\.[0-9]+)?`, not hex-only) + ADR-0014 §3 amendment
+  Status: planned
+  Ready: yes (ground-truth QR string captured under §5.8.1 consent in `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`; no upstream fetch required to ship)
+  Owner: mobile-builder (with parser-specialist)
+  Type: parser
+  Outcome: Scanning a real AADE tameiakí receipt with the current app no longer surfaces a spurious `{ ok: false, reason: "path" }` — the on-device validator recognises the actual uppercase-Latin-alphanumeric + optional `.NN` shape that AADE prints in the `SIG=` query parameter. ADR-0014 §3 gets the same in-place amendment block as BLG-0035 (one block covers both corrections — they ship in the same PR per S-013 plan).
+  Acceptance:
+  - `mobile/src/parsers/gr.ts` `GR_AADE_SIG_REGEX` updated to `/^[A-Z0-9]{1,256}(\.[0-9]+)?$/`. Host + path regex constants (`GR_AADE_HOST`, `GR_AADE_PATH`) unchanged (they match the QR ground truth byte-for-byte).
+  - `mobile/__tests__/parsers/gr.test.ts` Family B (AADE tameiakí) suite rewritten: the accept case uses the real consented SIG `DMB230020710020471523FF055EC975FA1D260A2C9674D007260427092515.00` from `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`; the existing "rejects an AADE URL with a non-hex SIG" case stays (lowercase / punctuation / whitespace rejection); a new reject case asserts SIGs longer than 256 chars are rejected as `path`.
+  - ADR-0014 §3 amendment block covers both BLG-0035 + BLG-0036 in one section (see sample wording in `docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md`).
+  - Fixture stub committed at `backend/tests/fixtures/receipts/gr-aade-001/provenance.md` carrying the verbatim §5.8.1 consent statement + the decoded QR URL + the redactions list + a "no `raw.html` until BLG-0030 fetch lands; AADE ToS / robots.txt review precondition still in force per ADR-0014 §4" status note.
+  - `make check` green.
+  Design: N/A.
+  Approach: Same as BLG-0035 — pure on-device regex + test update + shared ADR-0014 §3 amendment block + fixture stub. Both BLGs ship in the same S-013 PR.
+  Size: XS
+  Impact-notes: { external-surface: no; rls: no; localization: no; country-code: GR }
+  Links: [docs/adr/S-010-ADR-0014-Receipt-format-scope-expansion.md, docs/spikes/gr-qr-ground-truth-2026-05-12/findings.md, mobile/src/parsers/gr.ts]
 
 - ID: BLG-0027
   Title: AADE tameiakí signature URL adapter (Family A) — `backend/app/parsers/gr/aade/`
